@@ -426,7 +426,7 @@ View results on GitHub under the repository's **Actions** tab, or as a check mar
 
 ### Architecture
 
-**CI (Continuous Integration)** means every change is automatically built and tested, on a clean machine, as soon as it is shared. **CD (Continuous Delivery/Deployment)** means a change that passes is automatically packaged, and optionally released. This project has **CI today; CD is not set up yet**.
+**CI (Continuous Integration)** means every change is automatically built and tested, on a clean machine, as soon as it is shared. **CD (Continuous Delivery/Deployment)** means a change that passes is automatically packaged, and optionally released. This project has **CI and a tag-driven release workflow** (CD in the "continuous delivery" sense: a tagged version is tested, built, packaged, checksummed and published automatically; nothing is deployed to users' machines).
 
 ```
   Developer machine                              GitHub (remote)
@@ -446,8 +446,9 @@ View results on GitHub under the repository's **Actions** tab, or as a check mar
  └────────────────────────────────┘        │   branch protection: merge allowed   │
         LAYER 1: fast, local                │   only if green   (LAYER 2: gate)    │
                                             │            │                         │
-                                            │            ▼   (NOT IMPLEMENTED YET) │
-                                            │   CD: package exe, attach to release │
+                                            │            ▼   (on a v* tag)         │
+                                            │   release.yml: test, build, zip,     │
+                                            │   SHA-256, attestation, GitHub release│
                                             └──────────────────────────────────────┘
 ```
 
@@ -456,9 +457,9 @@ View results on GitHub under the repository's **Actions** tab, or as a check mar
 | Write and run locally | Your PC | VS Code tasks / Lazarus | Done |
 | Pre-commit check | Your PC | [.githooks/pre-commit](./.githooks/pre-commit) → [scripts/run-tests.ps1](./scripts/run-tests.ps1) | Done (verified) |
 | Source control | GitHub | Git | Done |
-| Build and test on a clean machine | GitHub | [.github/workflows/ci.yml](./.github/workflows/ci.yml) | Done: first run passed (failure path not yet tested) |
-| Merge gate | GitHub | Branch protection rule | Manual setup (see below) |
-| Package and release the exe | GitHub | A release workflow | **Not implemented** |
+| Build and test on a clean machine | GitHub | [.github/workflows/ci.yml](./.github/workflows/ci.yml) | Done: passes on good code, fails on bad (validated), uploads `test-results.xml` |
+| Merge gate | GitHub | Branch protection on `master` (`test` required, applies to admins) | Done and validated: direct push rejected, red PR cannot merge |
+| Package and release the exe | GitHub | [.github/workflows/release.yml](./.github/workflows/release.yml) | Done: `v0.1.0` published with checksum and attestation (verified) |
 
 Design choices:
 - **One script, two callers.** [scripts/run-tests.ps1](./scripts/run-tests.ps1) is used by both the hook and CI, so "passes locally" and "passes in CI" mean the same thing.
@@ -500,21 +501,46 @@ Check it with `git config core.hooksPath` (should print `.githooks`).
 - Open the repository on GitHub → **Actions** tab → the **CI** run, or use `gh run list` and `gh run view --log-failed`.
 - Expect to adjust the workflow on the first run. The Lazarus install step and the SQLite download are the most likely to need a tweak. Read the failing step's log, fix [.github/workflows/ci.yml](./.github/workflows/ci.yml), and push again until it is green.
 
-**7. Require passing checks before merging** (GitHub web UI, once)
-- Settings → Branches → **Add branch protection rule** for `master` (or `main`).
-- Turn on **Require status checks to pass before merging** and select the **test** check (it appears after the first run).
-- Optionally turn on **Require a pull request before merging**.
+**7. Require passing checks before merging** (done through the `gh` CLI; the same can be set in Settings → Branches)
+
+```powershell
+@'
+{
+  "required_status_checks": { "strict": true, "contexts": ["test"] },
+  "enforce_admins": true,
+  "required_pull_request_reviews": { "required_approving_review_count": 0, "require_code_owner_reviews": false },
+  "restrictions": null,
+  "allow_force_pushes": false,
+  "allow_deletions": false
+}
+'@ | gh api -X PUT repos/elderdo/PascalSqliteContactsGUI/branches/master/protection --input -
+```
+
+- **`contexts: ["test"]`** is the job name in `ci.yml`; the check must be green to merge. **`strict`** also requires the branch to be up to date.
+- **`enforce_admins: true`** means the owner is bound too, so even I use pull requests.
+- Approvals are set to 0 because a solo maintainer cannot approve their own pull request. With a team, set `required_approving_review_count` to 1 and `require_code_owner_reviews` to true so [CODEOWNERS](./.github/CODEOWNERS) is enforced.
 - Without this step, CI only reports problems; it does not stop anyone.
 
 **8. Verify the whole chain**
 - Locally: break a test on purpose, stage it, run `git commit`; it should be aborted. Restore the code.
-- On GitHub: open a pull request with a deliberately failing test; the check should turn red and, with step 7, block the merge.
+- On GitHub: open a pull request with a deliberately failing test; the check should turn red and block the merge (done, see below).
 
-**9. Add CD (not done yet)**
-A simple delivery step would extend the workflow to build the release exe and attach it to a tagged GitHub Release, for example:
-- Trigger on tags such as `v1.0.0`.
-- Run the tests, build with `lazbuild hellocontacts.lpi`, and upload `hellocontacts.exe` (and `sqlite3.dll`, which the app needs at run time) with a release action.
-- The version comes from the tag, so every released exe maps to an exact commit.
+**9. Releases (CD)**
+[release.yml](./.github/workflows/release.yml) runs when a `v*` tag is pushed: it runs the tests, does a full rebuild, zips `hellocontacts.exe` with `sqlite3.dll`, writes a SHA-256 file, records a build attestation, and publishes a GitHub release. The version comes from the tag, so every released exe maps to an exact commit.
+
+```powershell
+git tag -a v0.2.0 -m "v0.2.0: what changed"
+git push origin v0.2.0
+gh release view v0.2.0 -R elderdo/PascalSqliteContactsGUI
+```
+
+To check a downloaded release:
+
+```powershell
+gh release download v0.2.0 -R elderdo/PascalSqliteContactsGUI
+Get-FileHash .\hellocontacts-v0.2.0-win64.zip -Algorithm SHA256     # compare with the .sha256 file
+gh attestation verify .\hellocontacts-v0.2.0-win64.zip --repo elderdo/PascalSqliteContactsGUI   # exit code 0 = verified
+```
 
 ### Validating the pipeline
 
@@ -530,11 +556,15 @@ A pipeline that has never been seen to fail proves nothing. A check that always 
 
 Check 3 is the one that matters most. It proves the hook can actually stop a commit, and that the failing test is named so the cause is obvious.
 
+**Validated after the first pass:**
+- **Branch protection** (2026-10-08). A direct `git push origin master` was rejected: `Required status check "test" is expected ... protected branch hook declined`. A deliberately broken pull request went red, and `gh pr merge` refused: `the base branch policy prohibits the merge` (merge state `BLOCKED`). A good pull request (#2) merged normally. Not tried: whether the `--admin` override works; with `enforce_admins` on it should not, but that is unconfirmed.
+- **Release workflow.** Tagging `v0.1.0` ran the tests, built, packaged and published the release. The downloaded zip's SHA-256 matched the `.sha256` file, `gh attestation verify` exited 0, and the zip held `hellocontacts.exe`, `sqlite3.dll`, `README.md` and `CODE_GUIDE.md`. The exe was **not** launched from the zip; do that on a clean machine before a real release.
+- **CI failure path.** A deliberately broken pull request turned CI red and the revert turned it green (see "Worked example: CI failure on a pull request"). Only the failing-test case was exercised in CI; a failing download or install step was not.
+- **Test evidence.** The `test-results` artifact is uploaded on every run (881 bytes, with run counts, failures and timings).
+
 **Not yet validated:**
-- **CI failure path: now validated.** A deliberately broken pull request turned CI red and the revert turned it green (see "Worked example: CI failure on a pull request"). Only the failing-test case was exercised in CI; a failing download or install step was not.
-- **CI warning:** the run reported that `actions/checkout@v4` runs on a deprecated Node.js 20 runtime. It still works; update the action version when a newer one is available.
-- **Branch protection.** Confirm a red check really blocks the merge button once the rule is on.
 - **Fresh clone.** Clone the repository into a new folder, run `git config core.hooksPath .githooks`, and make a commit, to prove the setup steps work for someone who is not you.
+- **Dependabot updates.** It has opened pull requests for newer action versions; each should go through the same CI before merging. The release workflow only runs on a tag, so a bump to its actions is not tested until the next release.
 
 **Problem found while validating:** `gh` was pointed at a different repository (`SteveSchilz/PascalHelloLazarusDatabase`, the original project this one derives from) and returned a 404. Pass the repository explicitly, for example `gh run list -R elderdo/PascalSqliteContactsGUI`, or set it once with `gh repo set-default elderdo/PascalSqliteContactsGUI`. A tool pointed at the wrong repository can look like "CI is not running" when the real problem is the target.
 
@@ -728,7 +758,7 @@ git config core.hooksPath .githooks     # re-enable
 
 **E. Force CI to fail (cases 8 to 10).** Done for real, see "Worked example: CI failure on a pull request" below. To rehearse a bad download, change the SQLite URL in `ci.yml` on a throwaway branch to one with a typo, open a pull request, and read the log with `gh run view <id> --log-failed`. Expect the "Download SQLite DLL" step to turn red and the later steps to be skipped (not yet run).
 
-**F. Force a blocked merge (case 13).** After turning on branch protection, open a pull request from the broken branch. Expect the merge button to be disabled with "Required statuses must pass".
+**F. Force a blocked merge (case 13).** Done for real: with branch protection on, open a pull request from a broken branch, wait for red, then run `gh pr merge <n> -R elderdo/PascalSqliteContactsGUI --squash`. Result: `Pull request ... is not mergeable: the base branch policy prohibits the merge.` On the web page the merge button is disabled with "Required statuses must pass". Also try `git push origin master` directly: `protected branch hook declined`.
 
 #### Worked example: CI failure on a pull request, and the fix (real run)
 
@@ -816,7 +846,7 @@ Nothing from the exercise was merged, so `master` was untouched.
 - The failure is visible from the command line and on the pull request.
 - Fixing the code turns it green again, so a green check can be trusted.
 
-**Still not proven:** that GitHub *blocks the merge* of a red pull request. That needs branch protection (case 13), which has to be turned on in the repository settings. Until then a red check warns, but it does not stop anyone from merging.
+**Merge blocking: now proven.** Branch protection was turned on and a red pull request could not be merged (`the base branch policy prohibits the merge`); see "Validated after the first pass" above.
 
 #### A debugging routine that works for every case
 

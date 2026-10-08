@@ -1,6 +1,6 @@
 # Demo script (about 10 minutes)
 
-Goal: show how a small Pascal app is run like a production system. Rehearse once. Every command below has been run on this project; step 7 (merge blocking) depends on branch protection being enabled.
+Goal: show how a small Pascal app is run like a production system. Rehearse once. Every command below has been run on this project, including the blocked merge in step 7 (see "Validated after the first pass" in the guide).
 
 **Setup before the demo:** VS Code open on the repo, a PowerShell terminal in the project root, the GitHub repository open in a browser, `core.hooksPath` set (`git config core.hooksPath` prints `.githooks`).
 
