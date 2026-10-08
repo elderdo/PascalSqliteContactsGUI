@@ -2,7 +2,7 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "Build (lazbuild)",
+      "label": "Build",
       "type": "shell",
       "command": "C:\\lazarus\\lazbuild.exe",
       "args": ["hellocontacts.lpi"],
@@ -21,7 +21,13 @@
       }
     },
     {
-      "label": "Clean and Build (lazbuild)",
+      "label": "Clean",
+      "type": "shell",
+      "command": "Remove-Item -Recurse -Force -ErrorAction SilentlyContinue lib\\x86_64-win64\\*, hellocontacts.exe",
+      "problemMatcher": []
+    },
+    {
+      "label": "Clean and Build",
       "type": "shell",
       "command": "C:\\lazarus\\lazbuild.exe",
       "args": ["-B", "hellocontacts.lpi"],
@@ -40,7 +46,15 @@
       }
     },
     {
-      "label": "Run hellocontacts",
+      "label": "Clean, Build and Run",
+      "type": "shell",
+      "command": ".\\hellocontacts.exe",
+      "dependsOn": ["Clean and Build"],
+      "dependsOrder": "sequence",
+      "problemMatcher": []
+    },
+    {
+      "label": "Run",
       "type": "shell",
       "command": ".\\hellocontacts.exe",
       "problemMatcher": []
