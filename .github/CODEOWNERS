@@ -1,0 +1,5 @@
+# Every change needs review from the owner. Narrower rules can be added per area.
+*                       @elderdo
+/.github/               @elderdo
+/tests/                 @elderdo
+/resources/             @elderdo

@@ -37,3 +37,6 @@ lib/
 # Project Executable Mac OS / Linux
 helloContacts
 
+
+# Test evidence generated locally/CI
+tests/test-results.xml

@@ -1,0 +1,62 @@
+name: Release
+
+# Runs when a version tag such as v1.0.0 is pushed.
+on:
+  push:
+    tags: [ 'v*' ]
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install Lazarus
+        shell: pwsh
+        run: |
+          choco install lazarus -y --no-progress
+          "C:\lazarus" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+
+      - name: Download SQLite DLL
+        shell: pwsh
+        run: |
+          Invoke-WebRequest https://www.sqlite.org/2024/sqlite-dll-win-x64-3450100.zip -OutFile sqlite.zip
+          Expand-Archive sqlite.zip -DestinationPath sqlite
+          Copy-Item sqlite\sqlite3.dll tests\sqlite3.dll
+
+      - name: Run unit tests (release is blocked if any fail)
+        shell: pwsh
+        run: ./scripts/run-tests.ps1
+
+      - name: Build release executable
+        shell: pwsh
+        run: lazbuild -B hellocontacts.lpi
+
+      - name: Package and checksum
+        shell: pwsh
+        run: |
+          $name = "hellocontacts-${{ github.ref_name }}-win64"
+          New-Item -ItemType Directory $name | Out-Null
+          Copy-Item hellocontacts.exe, sqlite\sqlite3.dll, README.md, CODE_GUIDE.md $name
+          Compress-Archive -Path $name -DestinationPath "$name.zip"
+          $hash = (Get-FileHash "$name.zip" -Algorithm SHA256).Hash.ToLower()
+          "$hash  $name.zip" | Out-File "$name.zip.sha256" -Encoding ascii
+          "ASSET=$name.zip" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: ${{ env.ASSET }}
+
+      - name: Publish GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ github.ref_name }}" "$env:ASSET" "$env:ASSET.sha256" `
+            --repo "${{ github.repository }}" --title "${{ github.ref_name }}" --generate-notes

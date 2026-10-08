@@ -5,11 +5,18 @@ on:
     branches: [ main, master ]
   pull_request:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Lazarus
         shell: pwsh
@@ -26,6 +33,24 @@ jobs:
       - name: Build and run unit tests
         shell: pwsh
         run: ./scripts/run-tests.ps1
+
+      - name: Save test evidence (XML)
+        if: always()
+        shell: pwsh
+        run: |
+          if (Test-Path ./tests/hellocontacts_tests.exe) {
+            ./tests/hellocontacts_tests.exe --all --format=xml --file=tests/test-results.xml
+          }
+          exit 0
+
+      - name: Upload test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: tests/test-results.xml
+          if-no-files-found: warn
+          retention-days: 90
 
       - name: Build application
         shell: pwsh
