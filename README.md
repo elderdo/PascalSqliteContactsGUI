@@ -17,6 +17,11 @@ This is designed to be the simplest possible SQL database.  There are three rela
 
 ![Screenshot](./images/helloContactsScreenshot.png) 
 
+## Documentation
+
+* [Code Guide](./CODE_GUIDE.md): code structure, startup sequence, and what each source file does.
+* [DevLog](./DevLog.MD): development notes.
+
 ## What I Learned
 
 Although the IDE was sometimes glitchy, requiring restarts in order to create new form event methods, overall it was a decent programming experience.   Cross-platform support is present, such as resource files for images, and ability to create the database file in an OS-Recommended location
