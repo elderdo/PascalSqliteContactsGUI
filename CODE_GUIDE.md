@@ -10,6 +10,8 @@ A Lazarus / Free Pascal desktop app (Windows) that manages contacts and their ph
 - [Window placement](#window-placement-ensureonscreen)
 - [Database](#database)
 - [Unit tests](#unit-tests)
+  - [Automated checks (pre-commit hook and CI)](#automated-checks-pre-commit-hook-and-ci)
+- [CI/CD pipeline: architecture and setup](#cicd-pipeline-architecture-and-setup)
 - [Embedded resources](#embedded-resources)
 - [Build and run](#build-and-run)
 - [Known quirks and TODOs](#known-quirks-and-todos)
@@ -38,6 +40,8 @@ A Lazarus / Free Pascal desktop app (Windows) that manages contacts and their ph
 | [resources/helloContacts-SCHEMA.sql](./resources/helloContacts-SCHEMA.sql) | Database schema, run on first launch |
 | [.vscode/tasks.json](./.vscode/tasks.json) | VS Code build/test/run tasks |
 | [tests/](./tests) | FPCUnit test project (see [Unit tests](#unit-tests)) |
+| [.githooks/pre-commit](./.githooks/pre-commit), [scripts/run-tests.ps1](./scripts/run-tests.ps1) | Git pre-commit hook and the script that builds and runs the tests |
+| [.github/workflows/ci.yml](./.github/workflows/ci.yml) | GitHub Actions workflow (see [Automated checks](#automated-checks-pre-commit-hook-and-ci)) |
 
 Each `.pas` form unit has a matching `.lfm` file holding the form's visual layout and component properties (the Lazarus designer reads and writes these).
 
@@ -357,12 +361,182 @@ TPhoneTests Time:00.205 N:6 E:0 F:1 I:0
 3. **New test unit:** create a unit with a `TTestCase` descendant, call `RegisterTest(YourClass)` in `initialization`, add the unit to the `uses` clause of [tests/hellocontacts_tests.lpr](./tests/hellocontacts_tests.lpr), and add it to the `.lpi` if you use the Lazarus IDE.
 4. **Name tests for behavior** (`DeleteUserDeletesTheirPhones`, not `Test5`), so a failure message explains the problem by itself.
 
+### Automated checks (pre-commit hook and CI)
+
+Tests only help if they actually run. Two layers make that automatic:
+
+| Layer | When it runs | What it does | Can it be bypassed? |
+|---|---|---|---|
+| **Pre-commit hook** ([.githooks/pre-commit](./.githooks/pre-commit)) | On your machine, at `git commit` | Builds and runs the tests; **aborts the commit** if any test fails | Yes: `git commit --no-verify` |
+| **GitHub Actions CI** ([.github/workflows/ci.yml](./.github/workflows/ci.yml)) | On GitHub, for every push to `main`/`master` and every pull request | Installs Lazarus on a clean Windows machine, runs the tests, builds the app | No: the result is recorded on the commit or pull request |
+
+The hook gives fast feedback before a bad commit exists. CI is the safety net, because it runs on a clean machine (catching "works on my machine" problems) and cannot be skipped by accident.
+
+#### Local pre-commit hook
+
+Git does not copy hooks when you clone, so the hook lives in the repo in [.githooks/](./.githooks) and each clone must switch it on **once**:
+
+```
+git config core.hooksPath .githooks
+```
+
+(This is already set in your current clone.)
+
+How it works:
+1. `git commit` runs [.githooks/pre-commit](./.githooks/pre-commit) first.
+2. If none of the staged files are `.pas`, `.lpr`, `.lpi`, `.lfm`, `.sql`, or `.rc`, it skips the tests (so doc-only commits stay fast).
+3. Otherwise it runs [scripts/run-tests.ps1](./scripts/run-tests.ps1), which finds `lazbuild` (on PATH, or `C:\lazarus`), builds [tests/hellocontacts_tests.lpi](./tests/hellocontacts_tests.lpi), and runs the test exe.
+4. A non-zero exit code aborts the commit, and the failing test is printed.
+
+I verified it by temporarily breaking `ValidatePhone`: `git commit` printed `TValidatePhoneTests.NineDigitsIsRejected` as a failure, then `tests failed, commit aborted.`, and no commit was created.
+
+Notes:
+- The hook only tests what you have in your working folder, not strictly what is staged.
+- It takes a few seconds, because it compiles first.
+- Use `git commit --no-verify` only for an emergency or work-in-progress commit. CI will still run.
+- `scripts/run-tests.ps1` can also be run by hand: `powershell -File scripts\run-tests.ps1`.
+
+#### GitHub Actions CI
+
+[.github/workflows/ci.yml](./.github/workflows/ci.yml) defines one job on `windows-latest`:
+
+1. Check out the code.
+2. Install Lazarus with Chocolatey (`choco install lazarus`) and put `C:\lazarus` on PATH.
+3. Download the official SQLite DLL into `tests/`, since the runner has no `sqlite3.dll` of its own.
+4. Run `scripts/run-tests.ps1` (build and run the tests).
+5. Build the application with `lazbuild hellocontacts.lpi`.
+
+View results on GitHub under the repository's **Actions** tab, or as a check mark or red X next to each commit and pull request.
+
+**Status:** I could not run this workflow from here, so it is untested until the first push. The Lazarus install and the SQLite download URL are the most likely places to need a tweak. If the first run fails, open the run in the Actions tab and read the failing step's log.
+
+#### Making it enforce quality
+
+- **Block merging on failure:** in GitHub, go to Settings → Branches → add a branch protection rule for `main`/`master` and require the **test** check to pass before merging. Without this, CI reports failures but does not stop anyone.
+- **Developer workflow:** commit locally (hook runs) → push (CI runs) → fix anything red before merging.
+
 ### Limits and notes
 
 - **Not covered:** the forms ([unit1.pas](./unit1.pas), [unitaddcontact.pas](./unitaddcontact.pas), [unitaddphone.pas](./unitaddphone.pas)) and `UnitData`'s startup logic. Only `Utils` and database behavior are tested. Moving logic out of the forms and into `Utils` makes more of the app testable.
 - **SQLite DLL:** the database tests need `sqlite3.dll` to be findable, just like the app.
 - **Windows temp folder:** if a test run is killed mid-way, a leftover `hellocontacts_test_*.db` file may remain in `%TEMP%`. It is safe to delete.
 - **Existing data:** tests never change your real database, so the cascade fix does not clean up orphans already there.
+
+## CI/CD pipeline: architecture and setup
+
+### Architecture
+
+**CI (Continuous Integration)** means every change is automatically built and tested, on a clean machine, as soon as it is shared. **CD (Continuous Delivery/Deployment)** means a change that passes is automatically packaged, and optionally released. This project has **CI today; CD is not set up yet**.
+
+```
+  Developer machine                              GitHub (remote)
+ ┌────────────────────────────────┐        ┌──────────────────────────────────────┐
+ │ edit code in VS Code / Lazarus │        │                                      │
+ │            │                   │        │  GitHub Actions runner (Windows)     │
+ │            ▼                   │        │   1. checkout                        │
+ │  git commit                    │  git   │   2. install Lazarus                 │
+ │   └─ pre-commit hook  ◄──┐     │  push  │   3. get sqlite3.dll                 │
+ │       run-tests.ps1      │     │ ─────► │   4. run-tests.ps1  (FPCUnit)        │
+ │       tests fail? ──► commit │  │        │   5. lazbuild  (build the app)       │
+ │                       blocked │  │        │            │                         │
+ │       tests pass ─────────────┘  │        │            ▼                         │
+ │            │                   │        │   green check / red X on the commit  │
+ │            ▼                   │        │            │                         │
+ │       commit created           │        │            ▼                         │
+ └────────────────────────────────┘        │   branch protection: merge allowed   │
+        LAYER 1: fast, local                │   only if green   (LAYER 2: gate)    │
+                                            │            │                         │
+                                            │            ▼   (NOT IMPLEMENTED YET) │
+                                            │   CD: package exe, attach to release │
+                                            └──────────────────────────────────────┘
+```
+
+| Stage | Where | Tool | Status |
+|---|---|---|---|
+| Write and run locally | Your PC | VS Code tasks / Lazarus | Done |
+| Pre-commit check | Your PC | [.githooks/pre-commit](./.githooks/pre-commit) → [scripts/run-tests.ps1](./scripts/run-tests.ps1) | Done (verified) |
+| Source control | GitHub | Git | Done |
+| Build and test on a clean machine | GitHub | [.github/workflows/ci.yml](./.github/workflows/ci.yml) | Written, **not yet run** |
+| Merge gate | GitHub | Branch protection rule | Manual setup (see below) |
+| Package and release the exe | GitHub | A release workflow | **Not implemented** |
+
+Design choices:
+- **One script, two callers.** [scripts/run-tests.ps1](./scripts/run-tests.ps1) is used by both the hook and CI, so "passes locally" and "passes in CI" mean the same thing.
+- **Hook for speed, CI for trust.** The hook catches mistakes in seconds, but anyone can skip it with `--no-verify` or may not have enabled it. CI cannot be skipped.
+- **A clean machine is the point.** CI installs everything from scratch, so it exposes hidden dependencies (such as the SQLite DLL) that happen to exist on your PC.
+- **The tests are the contract.** The pipeline is only as good as the tests it runs; see [Why tests matter here](#why-tests-matter-here).
+
+### Setup steps
+
+Everything below is already done for this repository, except where marked. Follow these steps to set it up in a new clone, or to recreate it in another project.
+
+**1. Prerequisites**
+- Git, Lazarus (with `lazbuild`), and a GitHub repository for the project.
+- The [`gh` CLI](https://cli.github.com/) is optional but handy for checking runs.
+
+**2. Test project**
+- Create the FPCUnit project in [tests/](./tests) as described in [Framework and layout](#framework-and-layout).
+- Confirm it passes: `lazbuild tests\hellocontacts_tests.lpi` then `.\tests\hellocontacts_tests.exe --all --format=plain`.
+
+**3. Test script**
+- Keep [scripts/run-tests.ps1](./scripts/run-tests.ps1). It must return exit code 0 on success and non-zero on failure. That exit code is what the hook and CI both read.
+
+**4. Pre-commit hook** (once per clone)
+```
+git config core.hooksPath .githooks
+```
+Check it with `git config core.hooksPath` (should print `.githooks`).
+
+**5. CI workflow**
+- Keep [.github/workflows/ci.yml](./.github/workflows/ci.yml) in the repository, on the default branch.
+- Commit and push:
+  ```
+  git add .githooks scripts .github
+  git commit -m "Add CI pipeline"
+  git push
+  ```
+
+**6. Watch the first run**
+- Open the repository on GitHub → **Actions** tab → the **CI** run, or use `gh run list` and `gh run view --log-failed`.
+- Expect to adjust the workflow on the first run. The Lazarus install step and the SQLite download are the most likely to need a tweak. Read the failing step's log, fix [.github/workflows/ci.yml](./.github/workflows/ci.yml), and push again until it is green.
+
+**7. Require passing checks before merging** (GitHub web UI, once)
+- Settings → Branches → **Add branch protection rule** for `master` (or `main`).
+- Turn on **Require status checks to pass before merging** and select the **test** check (it appears after the first run).
+- Optionally turn on **Require a pull request before merging**.
+- Without this step, CI only reports problems; it does not stop anyone.
+
+**8. Verify the whole chain**
+- Locally: break a test on purpose, stage it, run `git commit`; it should be aborted. Restore the code.
+- On GitHub: open a pull request with a deliberately failing test; the check should turn red and, with step 7, block the merge.
+
+**9. Add CD (not done yet)**
+A simple delivery step would extend the workflow to build the release exe and attach it to a tagged GitHub Release, for example:
+- Trigger on tags such as `v1.0.0`.
+- Run the tests, build with `lazbuild hellocontacts.lpi`, and upload `hellocontacts.exe` (and `sqlite3.dll`, which the app needs at run time) with a release action.
+- The version comes from the tag, so every released exe maps to an exact commit.
+
+### Why a production app needs tests *and* a pipeline
+
+Neither is enough alone:
+
+| | Tests only | Pipeline only | Tests + pipeline |
+|---|---|---|---|
+| Runs automatically | No, depends on someone remembering | Yes | Yes |
+| Checks anything meaningful | Yes | No: it only proves the code compiles | Yes |
+| Catches "works on my machine" | No | Partly | Yes |
+| Blocks bad changes from reaching users | No | Only if there are tests | Yes |
+
+Why it matters once real users depend on the app:
+- **Data is the product.** This app stores people's contacts. The cascade bug described in [Why tests matter here](#why-tests-matter-here) silently left orphaned rows behind, with no error. In a production app that kind of silent data corruption is what loses user trust, and only a test against the real database found it.
+- **Every change is a risk.** The more the app grows, the more likely a fix in one place breaks another. A fast automated suite lets you change code confidently instead of fearfully.
+- **Humans forget; pipelines don't.** A rule such as "run the tests before releasing" fails the first busy day. A pipeline runs on every change, including at 2 a.m. and on someone else's laptop.
+- **Releases become repeatable.** A release built by CI from a tagged commit is identical every time. A release built by hand on one PC depends on that PC's state and the person's memory.
+- **Bugs are cheaper earlier.** A failure at commit time costs seconds; in CI, minutes; after release, user-visible damage, support time, and often a data cleanup that code cannot fix (the orphaned rows already in a database are not removed by the code fix).
+- **Regressions stay fixed.** A bug fix that comes with a test can never silently return.
+- **It documents behavior.** The tests state precisely what the app promises (for example, "deleting a contact deletes their phone numbers").
+
+In short: **the tests define what "working" means, and the pipeline makes sure no change ships unless it still meets that definition.** For a production application, that combination is the minimum bar for changing code safely and releasing it with confidence.
 
 ## Known quirks and TODOs
 

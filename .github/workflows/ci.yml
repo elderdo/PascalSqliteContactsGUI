@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Lazarus
+        shell: pwsh
+        run: |
+          choco install lazarus -y --no-progress
+          "C:\lazarus" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+
+      - name: Download SQLite DLL
+        shell: pwsh
+        run: |
+          Invoke-WebRequest https://www.sqlite.org/2024/sqlite-dll-win-x64-3450100.zip -OutFile sqlite.zip
+          Expand-Archive sqlite.zip -DestinationPath tests
+
+      - name: Build and run unit tests
+        shell: pwsh
+        run: ./scripts/run-tests.ps1
+
+      - name: Build application
+        shell: pwsh
+        run: lazbuild hellocontacts.lpi

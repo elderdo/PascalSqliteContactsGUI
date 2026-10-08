@@ -1,0 +1,18 @@
+#!/bin/sh
+# Pre-commit hook: build and run the unit tests when code or tests changed.
+# Enable once per clone with:  git config core.hooksPath .githooks
+
+if ! git diff --cached --name-only | grep -Eqi '\.(pas|lpr|lpi|lfm|sql|rc)$'; then
+    echo "pre-commit: no Pascal/schema changes staged, skipping tests."
+    exit 0
+fi
+
+echo "pre-commit: running unit tests (use 'git commit --no-verify' to skip)..."
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$(dirname "$0")/../scripts/run-tests.ps1"
+status=$?
+
+if [ $status -ne 0 ]; then
+    echo "pre-commit: tests failed, commit aborted."
+    exit 1
+fi
+exit 0
