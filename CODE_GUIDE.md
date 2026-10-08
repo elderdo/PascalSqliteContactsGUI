@@ -849,6 +849,15 @@ Why it matters once real users depend on the app:
 
 In short: **the tests define what "working" means, and the pipeline makes sure no change ships unless it still meets that definition.** For a production application, that combination is the minimum bar for changing code safely and releasing it with confidence.
 
+### Governance, evidence and releases
+
+The pipeline above is extended with change-control and evidence practices, documented separately:
+
+- **Test evidence:** each CI run uploads `test-results.xml` (the **test-results** artifact, kept 90 days).
+- **Releases:** pushing a tag such as `v0.1.0` runs [release.yml](./.github/workflows/release.yml): tests, a full rebuild, a zip with a SHA-256 file, a build attestation, then a GitHub release.
+- **Change control:** [pull request template](./.github/PULL_REQUEST_TEMPLATE.md), [code owners](./.github/CODEOWNERS), and protected `master`.
+- **Traceability:** [docs/REQUIREMENTS.md](./docs/REQUIREMENTS.md). **Compliance gaps:** [docs/COMPLIANCE.md](./docs/COMPLIANCE.md). **AI use:** [docs/AI_WORKFLOW.md](./docs/AI_WORKFLOW.md). **Demo:** [docs/DEMO_SCRIPT.md](./docs/DEMO_SCRIPT.md).
+
 ## Known quirks and TODOs
 
 - Both dialogs repeat the same edit-mode code. A TODO in [unitaddphone.pas](./unitaddphone.pas) suggests a shared base class.
