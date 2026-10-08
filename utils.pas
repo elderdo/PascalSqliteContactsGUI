@@ -107,7 +107,7 @@ begin
         //
         // This is just a simple check that we have 10 digits
         //             9168490226
-        if (phNumber <= 999999999)  then
+        if (phNumber <= 99999999)  then
            begin
            isOk := false;
            end;
