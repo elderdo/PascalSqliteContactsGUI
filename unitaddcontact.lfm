@@ -1,9 +1,10 @@
 object FrmAddContact: TFrmAddContact
-  Left = 1976
+  Left = 150
   Height = 240
-  Top = -910
+  Top = 150
   Width = 320
   Caption = 'Add Contact'
+  Position = poMainFormCenter
   ClientHeight = 240
   ClientWidth = 320
   OnShow = FormShow

@@ -1,9 +1,10 @@
 object FormContacts: TFormContacts
-  Left = 1586
+  Left = 100
   Height = 391
-  Top = -865
+  Top = 100
   Width = 864
   Caption = 'Hello Contacts DB'
+  Position = poScreenCenter
   ClientHeight = 391
   ClientWidth = 864
   LCLVersion = '4.6.0.0'

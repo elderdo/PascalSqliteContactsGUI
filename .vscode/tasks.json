@@ -1,0 +1,49 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Build (lazbuild)",
+      "type": "shell",
+      "command": "C:\\lazarus\\lazbuild.exe",
+      "args": ["hellocontacts.lpi"],
+      "group": { "kind": "build", "isDefault": true },
+      "problemMatcher": {
+        "owner": "fpc",
+        "fileLocation": ["absolute"],
+        "pattern": {
+          "regexp": "^(.+)\\((\\d+),(\\d+)\\)\\s+(Error|Fatal|Warning|Hint|Note):\\s+(.*)$",
+          "file": 1,
+          "line": 2,
+          "column": 3,
+          "severity": 4,
+          "message": 5
+        }
+      }
+    },
+    {
+      "label": "Clean and Build (lazbuild)",
+      "type": "shell",
+      "command": "C:\\lazarus\\lazbuild.exe",
+      "args": ["-B", "hellocontacts.lpi"],
+      "group": "build",
+      "problemMatcher": {
+        "owner": "fpc",
+        "fileLocation": ["absolute"],
+        "pattern": {
+          "regexp": "^(.+)\\((\\d+),(\\d+)\\)\\s+(Error|Fatal|Warning|Hint|Note):\\s+(.*)$",
+          "file": 1,
+          "line": 2,
+          "column": 3,
+          "severity": 4,
+          "message": 5
+        }
+      }
+    },
+    {
+      "label": "Run hellocontacts",
+      "type": "shell",
+      "command": ".\\hellocontacts.exe",
+      "problemMatcher": []
+    }
+  ]
+}
