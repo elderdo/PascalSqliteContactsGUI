@@ -52,10 +52,11 @@ powershell -File scripts\run-tests.ps1       # run the unit tests
 
 ## Roadmap
 
-Honest list of what is not done yet:
+The full, ordered to-do list is in [CODE_GUIDE.md: Roadmap](./CODE_GUIDE.md#roadmap-to-do-list), including a planned dependency-injection refactoring. Highlights, and what is not done yet:
 
 - Parameterized SQL instead of string-built statements (see known quirks in the guide).
 - One-time cleanup for orphaned phone rows in databases created before the foreign-key fix.
+- Dependency injection: interfaces between the forms and the data layer, so the UI can be tested with a fake and another database could be added later (planned, not started).
 - Audit trail, user authentication and electronic signatures (needed for regulated data; see [COMPLIANCE.md](./docs/COMPLIANCE.md)).
 - GUI test automation and code coverage reporting.
 - Copilot coding agent setup for labelled issues, gated by the same checks.

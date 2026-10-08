@@ -15,6 +15,7 @@ A Lazarus / Free Pascal desktop app (Windows) that manages contacts and their ph
 - [Embedded resources](#embedded-resources)
 - [Build and run](#build-and-run)
 - [Known quirks and TODOs](#known-quirks-and-todos)
+- [Roadmap (to-do list)](#roadmap-to-do-list)
 
 ## Overview
 
@@ -897,3 +898,56 @@ The pipeline above is extended with change-control and evidence practices, docum
 - The `.lfm` files also set `Position` to center the forms. Stale off-screen `Left`/`Top` values in them are harmless because of `EnsureOnScreen`, but the Lazarus designer can still write odd values back.
 - [unit1.pas](./unit1.pas) has hard-coded column indexes in `HideIds`; reordering the query columns will change which columns are hidden.
 - The project depends on the `Windows` unit (resource loading), so it is Windows-only as written.
+
+## Roadmap (to-do list)
+
+Ordered by value. Items marked **Showcase** make the project stronger for a review; the rest improve the product. Each item should go through the normal flow: a requirement in [docs/REQUIREMENTS.md](./docs/REQUIREMENTS.md), a test first, a pull request, green CI.
+
+### Next up
+
+- [ ] **Parameterized SQL (Showcase).** Replace `QuotedStr` / `Format` string-building in [utils.pas](./utils.pas) with `TSQLQuery.Params`. Add tests that insert SQL metacharacters (for example `Robert'); DROP TABLE People;--`) and confirm the data is stored literally. Also fix the search filter in `ButtonSearchClick`.
+- [ ] **Orphaned phone rows cleanup.** A one-time migration that deletes `PhoneNumbers` rows whose `PersonId` no longer exists, run at startup after foreign keys are enabled. Test it against a database seeded with orphans. Back up the file before changing it.
+- [ ] **Show errors to the user.** `Utils.ShowException` only logs. Show a message and keep the log.
+- [ ] **Merge the Dependabot PRs** one at a time (each must pass CI). The release workflow's action bumps are untested until the next tag; cut a test tag afterwards.
+- [ ] **Fresh-clone check.** Clone into a new folder, follow the README quick start, and confirm the hook and tests work for someone else.
+- [ ] **Launch the released exe** from the downloaded zip on a clean machine and add the result to [Validating the pipeline](#validating-the-pipeline).
+- [ ] **Test the `--admin` merge override** with branch protection on, and record whether `enforce_admins` blocks it.
+
+### Pipeline and quality
+
+- [ ] **Code coverage report** published as a CI artifact (FPC supports `-Cc`/gcov-style tools; check what works with Lazarus on Windows).
+- [ ] **Static analysis / warnings as errors** in the test and app builds.
+- [ ] **GUI smoke test** (for example scripted launch and window-visible check) to close the REQ-013 to REQ-015 gaps in [docs/REQUIREMENTS.md](./docs/REQUIREMENTS.md).
+- [ ] **Secret scanning and code scanning** enabled in repository settings.
+- [ ] **Two-person review.** With a second maintainer, set required approvals to 1 and require code owner review so [CODEOWNERS](./.github/CODEOWNERS) is enforced.
+- [ ] **Copilot coding agent** on labelled issues, gated by the same checks. It needs a setup workflow that installs Lazarus, so it can build and run `scripts\run-tests.ps1`.
+- [ ] **AI-drafted release notes / PR summaries**, always reviewed by a human before publishing.
+
+### Regulated-data readiness (see [docs/COMPLIANCE.md](./docs/COMPLIANCE.md))
+
+- [ ] Audit trail (who, when, old and new value), user authentication, electronic signatures, encryption at rest, backup and retention.
+- [ ] Validation plan, risk assessment, and IQ/OQ/PQ protocols using CI results as evidence.
+
+### Refactoring: dependency injection (planned, not started)
+
+**Why.** Today the forms call a global, `DataModule1` in [unitdata.pas](./unitdata.pas), directly: [unit1.pas](./unit1.pas), [unitaddcontact.pas](./unitaddcontact.pas) and [unitaddphone.pas](./unitaddphone.pas) all reference it, and [hellocontacts.lpr](./hellocontacts.lpr) creates it with `Application.CreateForm`. The forms are therefore coupled to SQLite and cannot be tested without a database. Putting interfaces between the UI and the data layer lets us test the logic with a fake, and lets a different database be added without touching the forms.
+
+**Approach: a manual composition root, no DI framework.** Free Pascal interfaces plus plain constructors are enough, and this keeps the Lazarus Form Designer working. Form classes are created by `Application.CreateForm`, so they cannot take constructor arguments; use property or method injection (`InjectDependencies`) right after creation.
+
+Planned steps, each one a small pull request with all tests green:
+
+1. [ ] **Define contracts** in a new `unitinterfaces.pas`, for example `ILoggerService` and `IDatabaseService`, each with a GUID. Design the interface around what the forms actually need (people, phones, phone types) instead of exposing a raw dataset.
+2. [ ] **Move database code** from `DataModule1` into a `TSQLiteDatabaseService` (`TInterfacedObject, IDatabaseService`) that takes the logger in its constructor. Keep the existing DB location (`GetAppConfigDir`, see [Database](#database)), `Utils.EnableForeignKeys`, and schema-creation behavior; do not switch to a path next to the exe.
+3. [ ] **Add a composition root** (`TAppContainer`) that builds the logger and database service and is the only place that names concrete classes. Call it from `hellocontacts.lpr`.
+4. [ ] **Inject into the forms** with `InjectDependencies(...)`, and replace each `DataModule1.` reference. Do this one form at a time and run the app after each, because the forms' data-aware grids are bound to `DataModule1` data sources in the `.lfm` files and need re-pointing.
+5. [ ] **Remove the global** `DataModule1` once nothing references it.
+6. [ ] **Add fakes and tests.** An in-memory fake `IDatabaseService` for form-logic tests, plus the existing real-SQLite tests run against the new service. Update [docs/REQUIREMENTS.md](./docs/REQUIREMENTS.md) and this guide.
+
+**Things to get right** (the sketch this plan came from has gaps worth fixing first):
+- Interface lifetime: `TInterfacedObject` is reference-counted, so do not mix object and interface references to the same instance, and keep `Container` alive for the whole run.
+- Returning a live `TDataSet` from `GetPeopleDataSet` leaks the implementation (SQLDB) through the interface. Either accept that as a stepping stone for the data-aware grids, or return plain records or lists and bind the grids to a local dataset.
+- Every placeholder needs a real implementation before use: there is no `TFileLogger` yet, and `ExecuteInsert` is an empty stub. Fix the sketch's typo `TTSQLiteDatabaseService` too.
+- Use parameterized SQL in the new service (see "Next up"); do not copy the string-built pattern.
+- Do not hard-code the database path as in the sketch (`ExtractFilePath(ParamStr(0))`); that would move users' data and break existing databases.
+
+**Swapping databases.** A new database needs a new class that implements `IDatabaseService` and one changed line in the container. In practice also expect differences in SQL dialect, auto-increment, transactions, and driver setup, so a second implementation (for example Oracle through SQLDB) needs its own tests and is more than a one-line change. Do not claim it works until a second implementation has actually been built and tested.
