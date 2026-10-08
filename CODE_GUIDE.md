@@ -641,6 +641,104 @@ Do this after any change to the hook, the script, the workflow, or the tests:
 - **It builds trust.** When a check turns red later, the team will act on it, because it has been seen to catch real problems.
 - **Do it again after changes.** Every edit to the hook, the script, or the workflow can break the safety net without anyone noticing, so repeat the red and green checks above.
 
+### Troubleshooting: failures, how to force them, and how to fix them
+
+Seeing a failure on purpose, while you are calm and know the cause, is the best way to learn to read one at 5 pm on a release day. The first two cases below were run for this guide and the output is real (trimmed). The rest are described from how the tools behave and were **not** all reproduced; where output is shown as "expect", treat it as a guide.
+
+#### Good vs bad output at a glance
+
+| Layer | Good | Bad |
+|---|---|---|
+| `scripts\run-tests.ps1` | `Number of failures:  0`, exit code `0` | `Number of failures:  1` and a "List of failures", exit code `1` |
+| Pre-commit hook | Commit goes through, or "skipping tests" | `pre-commit: tests failed, commit aborted.`, no commit created |
+| GitHub Actions | Green tick on every step | Red cross on the failing step; later steps are skipped |
+
+**Good run (real output):**
+
+```text
+Number of run tests: 22
+Number of errors:    0
+Number of failures:  0
+```
+Exit code: `0`.
+
+**Failing test (real output, forced by changing `<= 999999999` to `<= 99999999` in `ValidatePhone`):**
+
+```text
+Number of run tests: 22
+Number of errors:    0
+Number of failures:  1
+
+List of failures:
+  Failure:
+    Message:           TValidatePhoneTests.NineDigitsIsRejected:  expected: <-1> but was: <999999999>
+    Exception class:   EAssertionFailedError
+        at ... NineDigitsIsRejected,  line 94 of utilstests.pas
+```
+Exit code: `1`. Through the hook the same text appears, followed by `pre-commit: tests failed, commit aborted.` and `git log` is unchanged.
+
+**How to read it:**
+- `TValidatePhoneTests.NineDigitsIsRejected` is *class.test*, so open `tests\utilstests.pas` at the line shown (94).
+- `expected: <-1> but was: <999999999>` means the test expected the code to reject the number (`-1`) but it was accepted.
+- `Failure` means an assertion was wrong. `Errors` (a separate count) means the test crashed with an exception, such as a missing DLL or a database error. Start with errors, because they often hide the real problem.
+- Decide which side is wrong, the code or the test. If the code is wrong, fix it. If the requirement changed, update the test deliberately and say so in the commit message.
+
+#### Failure catalogue
+
+| # | Symptom | Likely cause | How to debug | Fix |
+|---|---|---|---|---|
+| 1 | `Number of failures: N` | Code or test is wrong | Read the "List of failures" block; open the named test and line | Fix the code, or update the test if the rule truly changed |
+| 2 | `Number of errors: N` on the database tests, message mentions `sqlite3` or "could not load library" | `sqlite3.dll` not found. Locally it must be on `PATH` or in `tests\`; CI downloads it | `where.exe sqlite3.dll` (empty means missing) | Copy a 64-bit `sqlite3.dll` into `tests\` (it is git-ignored). Check that CI's download step is green |
+| 3 | Build fails: "Fatal: Can't find unit ..." or "Error: Identifier not found" | A unit was renamed, a package is missing from the test `.lpi`, or `Interfaces` is missing from the test `.lpr` | Run `lazbuild tests\hellocontacts_tests.lpi` by itself and read the first error | Add the unit or package, or fix the path. The test project compiles `utils.pas` through `OtherUnitFiles=..` |
+| 4 | `lazbuild is not recognized` or the script says it cannot find lazbuild | Lazarus is not installed or not on `PATH` | `where.exe lazbuild`; check `C:\lazarus\lazbuild.exe` exists | Install Lazarus, or add `C:\lazarus` to `PATH` |
+| 5 | Commit goes through with no test run at all | The hook is not enabled in this clone | `git config core.hooksPath` (should print `.githooks`) | `git config core.hooksPath .githooks`. Git never copies hooks when cloning |
+| 6 | Hook says "skipping tests" when you did change code | Only non-code files are staged (the hook looks at `.pas`, `.lpr`, `.lpi`, `.lfm`, `.sql`, `.rc`) | `git diff --cached --name-only` | Stage the code files too, or add the missing extension to the hook |
+| 7 | Hook blocks a commit and you must commit anyway (for example, to push a work-in-progress branch) | Failing test | Fix it first if you can | `git commit --no-verify` skips the hook. CI still runs, so a bad commit will turn the PR red |
+| 8 | Hook passes locally but CI is red | Something on your machine hides a problem: a file that exists only locally, an uncommitted change (the hook tests the working tree, not the staged snapshot), or a different Lazarus version | Compare `git status` with what was pushed; read the failing CI step | Commit the missing file; `git stash` unrelated edits and re-run the tests |
+| 9 | CI step "Install Lazarus" fails | The Chocolatey package or mirror was unavailable, or the version changed | `gh run view <id> -R elderdo/PascalSqliteContactsGUI --log-failed` | Re-run the job (`gh run rerun <id> --failed -R ...`); if it keeps failing, pin a version in `ci.yml` |
+| 10 | CI step "Download SQLite DLL" fails | The URL changed or returned 404 | `curl.exe -I https://www.sqlite.org/2024/sqlite-dll-win-x64-3450100.zip` | Find the current link on sqlite.org/download.html and update `ci.yml` |
+| 11 | CI never starts after a push | The branch is not in the `on:` list, the workflow file is invalid YAML, or Actions is disabled | `gh workflow list -R elderdo/PascalSqliteContactsGUI`; check the repo's Actions tab for a YAML error | Fix the YAML or branch filter; enable Actions in the repository settings |
+| 12 | `gh` gives 404 or shows the wrong repository's runs | `gh` is pointed at the upstream repository | `gh repo view` shows which repo it is using | Add `-R elderdo/PascalSqliteContactsGUI`, or `gh repo set-default elderdo/PascalSqliteContactsGUI` |
+| 13 | A red check but the merge button still works | Branch protection is not turned on | Repository Settings, Branches | Add a rule requiring the `test` check to pass before merging |
+
+#### Forcing failures on purpose
+
+Always do this on a throwaway branch or restore the file afterwards, and never leave a deliberate break on `master`.
+
+**A. Force a failing test (cases 1 and 7).** This is the one run for this guide:
+
+```powershell
+(Get-Content utils.pas -Raw).Replace('<= 999999999','<= 99999999') | Set-Content utils.pas -NoNewline
+powershell -NoProfile -File scripts\run-tests.ps1   # expect exit code 1
+git add utils.pas
+git commit -m "tmp"                                  # expect: commit aborted
+git reset; git checkout -- utils.pas                 # undo
+```
+
+**B. Force the hook to be skipped (case 5).** Show what a missing hook looks like, then restore it:
+
+```powershell
+git config core.hooksPath ""            # hook disabled; the next commit runs no tests
+git config core.hooksPath .githooks     # re-enable
+```
+
+**C. Force a compile error (case 3).** Add a deliberate typo, such as `xyz;` on its own line in `utils.pas`, then run `scripts\run-tests.ps1`. Expect an `Error:` line from the compiler with the file and line number, no test report, and a non-zero exit code. Remove the line afterwards.
+
+**D. Force a missing DLL (case 2).** Temporarily rename the DLL where Windows finds it (for example `tests\sqlite3.dll`) and run the tests. Expect the database tests to report errors rather than failures while the pure-logic tests still pass. Rename it back.
+
+**E. Force CI to fail (cases 8 to 10).** Use step 7 in "Commands used" above (a deliberately broken branch pushed with `--no-verify`). To rehearse a bad download, change the SQLite URL in `ci.yml` on a throwaway branch to one with a typo and read the log with `gh run view <id> --log-failed`. Expect the "Download SQLite DLL" step to turn red and the later steps to be skipped.
+
+**F. Force a blocked merge (case 13).** After turning on branch protection, open a pull request from the broken branch. Expect the merge button to be disabled with "Required statuses must pass".
+
+#### A debugging routine that works for every case
+
+1. **Find the first failure**, not the last. Later errors are usually fallout.
+2. **Reproduce locally.** `scripts\run-tests.ps1` runs the same thing CI does.
+3. **Read the whole message** and note the file and line.
+4. **Change one thing, re-run, and check the exit code.**
+5. **If it only fails in CI**, compare environments: tool versions, files that are git-ignored (DLLs, `lib\`), and paths.
+6. **After fixing, make sure the test would have caught it.** If the bug had no test, write one first (see "Adding a test").
+
 ### Why a production app needs tests *and* a pipeline
 
 Neither is enough alone:
