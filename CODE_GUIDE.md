@@ -408,7 +408,7 @@ Notes:
 
 View results on GitHub under the repository's **Actions** tab, or as a check mark or red X next to each commit and pull request.
 
-**Status:** I could not run this workflow from here, so it is untested until the first push. The Lazarus install and the SQLite download URL are the most likely places to need a tweak. If the first run fails, open the run in the Actions tab and read the failing step's log.
+**Status:** the first run on `master` passed (all steps green, about 3 minutes). If a later run fails, open it in the Actions tab and read the failing step's log. The Lazarus install and the SQLite download URL are the steps most likely to break if an upstream package or link changes.
 
 #### Making it enforce quality
 
@@ -456,7 +456,7 @@ View results on GitHub under the repository's **Actions** tab, or as a check mar
 | Write and run locally | Your PC | VS Code tasks / Lazarus | Done |
 | Pre-commit check | Your PC | [.githooks/pre-commit](./.githooks/pre-commit) → [scripts/run-tests.ps1](./scripts/run-tests.ps1) | Done (verified) |
 | Source control | GitHub | Git | Done |
-| Build and test on a clean machine | GitHub | [.github/workflows/ci.yml](./.github/workflows/ci.yml) | Written, **not yet run** |
+| Build and test on a clean machine | GitHub | [.github/workflows/ci.yml](./.github/workflows/ci.yml) | Done: first run passed (failure path not yet tested) |
 | Merge gate | GitHub | Branch protection rule | Manual setup (see below) |
 | Package and release the exe | GitHub | A release workflow | **Not implemented** |
 
@@ -515,6 +515,131 @@ A simple delivery step would extend the workflow to build the release exe and at
 - Trigger on tags such as `v1.0.0`.
 - Run the tests, build with `lazbuild hellocontacts.lpi`, and upload `hellocontacts.exe` (and `sqlite3.dll`, which the app needs at run time) with a release action.
 - The version comes from the tag, so every released exe maps to an exact commit.
+
+### Validating the pipeline
+
+A pipeline that has never been seen to fail proves nothing. A check that always passes looks identical to a check that works, so it has to be shown to **fail when it should**, not only to pass. Each layer was validated like this:
+
+| # | Check | How it was done | Result |
+|---|---|---|---|
+| 1 | Tests pass on clean code | Ran `scripts\run-tests.ps1` directly | 22 tests, 0 failures, exit code 0 |
+| 2 | Hook stays out of the way for non-code changes | Ran the hook with no `.pas`/`.lpi`/`.sql` files staged | Printed "no Pascal/schema changes staged, skipping tests", exit 0 |
+| 3 | **Hook blocks a bad commit** | Temporarily changed `ValidatePhone` (`<= 999999999` to `<= 99999999`), staged it, ran a real `git commit` | `TValidatePhoneTests.NineDigitsIsRejected` failed, "tests failed, commit aborted", exit 1, **no commit created** |
+| 4 | Working tree restored after the failure test | Restored `utils.pas`, ran `git status` and re-ran the tests | No leftover changes; 22 tests, 0 failures |
+| 5 | CI runs from a clean checkout | Committed, pushed to `master`, watched the run with `gh run watch -R elderdo/PascalSqliteContactsGUI` | **Passed** (run 37831780687, about 3 minutes): checkout, Lazarus install, SQLite download, unit tests, and app build all succeeded |
+
+Check 3 is the one that matters most. It proves the hook can actually stop a commit, and that the failing test is named so the cause is obvious.
+
+**Not yet validated:**
+- **CI failure path.** The first CI run was green, which shows the happy path works on a clean machine but not that CI can fail. Check 3 covers the local hook only. To prove that CI catches a failing test, push a branch that deliberately breaks a test, open a pull request, and confirm the check turns red. Then delete the branch.
+- **CI warning:** the run reported that `actions/checkout@v4` runs on a deprecated Node.js 20 runtime. It still works; update the action version when a newer one is available.
+- **Branch protection.** Confirm a red check really blocks the merge button once the rule is on.
+- **Fresh clone.** Clone the repository into a new folder, run `git config core.hooksPath .githooks`, and make a commit, to prove the setup steps work for someone who is not you.
+
+**Problem found while validating:** `gh` was pointed at a different repository (`SteveSchilz/PascalHelloLazarusDatabase`, the original project this one derives from) and returned a 404. Pass the repository explicitly, for example `gh run list -R elderdo/PascalSqliteContactsGUI`, or set it once with `gh repo set-default elderdo/PascalSqliteContactsGUI`. A tool pointed at the wrong repository can look like "CI is not running" when the real problem is the target.
+
+#### Commands used, step by step
+
+Run these from the project root in PowerShell. Each step says what it does and what you should see.
+
+**1. Green path: run the tests directly**
+
+```powershell
+powershell -NoProfile -File scripts\run-tests.ps1
+$LASTEXITCODE
+```
+
+The script builds the test project with `lazbuild`, runs it, and passes on the test runner's exit code. Expect the plain-text test report ending with no failures, and `0` from `$LASTEXITCODE`. Any non-zero value means at least one failure.
+
+**2. Skip path: run the hook with nothing relevant staged**
+
+```powershell
+git status --short
+& "C:\Program Files\Git\bin\sh.exe" .githooks/pre-commit
+$LASTEXITCODE
+```
+
+Git runs the hook through its bundled `sh`, so calling it the same way tests the real thing. With no `.pas`, `.lpr`, `.lpi`, `.lfm`, `.sql` or `.rc` files staged, expect "no Pascal/schema changes staged, skipping tests" and `0`.
+
+**3. Red path: break the code on purpose and try to commit**
+
+Open [utils.pas](./utils.pas), find `ValidatePhone`, and change the upper limit from `999999999` to `99999999` (one fewer 9). Then:
+
+```powershell
+git add utils.pas
+git commit -m "temporary: deliberately broken, should be blocked"
+$LASTEXITCODE
+git log --oneline -1
+```
+
+Expect the hook to run the tests, `TValidatePhoneTests.NineDigitsIsRejected` to fail, the message "tests failed, commit aborted", and a non-zero exit code. `git log` should still show your previous commit, which proves nothing was committed.
+
+**4. Clean up: undo the deliberate break**
+
+```powershell
+git reset
+git checkout -- utils.pas
+git status --short
+powershell -NoProfile -File scripts\run-tests.ps1
+```
+
+`git reset` unstages the file, and `git checkout -- utils.pas` discards the edit (if you had other uncommitted changes in that file, undo the one-line edit by hand instead). `git status` should show nothing left over, and the tests should pass again.
+
+**5. CI path: push and watch the GitHub run**
+
+```powershell
+git push
+gh run list -R elderdo/PascalSqliteContactsGUI --limit 3
+gh run watch <run-id> -R elderdo/PascalSqliteContactsGUI
+gh run view <run-id> -R elderdo/PascalSqliteContactsGUI
+```
+
+`gh run list` shows the newest runs and their ids, `gh run watch` follows one live, and `gh run view` lists each step with a tick or cross. If a step fails, add `--log-failed` to `gh run view` to print only the failing log. The `-R` option is needed because `gh` otherwise targets the wrong repository (see above).
+
+**6. Optional: check the SQLite download link CI depends on**
+
+```powershell
+curl.exe -I https://www.sqlite.org/2024/sqlite-dll-win-x64-3450100.zip
+```
+
+Expect `HTTP/1.1 200 OK`. A 404 here means the CI download step will fail.
+
+**7. Optional: prove CI turns red**
+
+```powershell
+git switch -c ci-red-test
+# make the same deliberate break as in step 3, then:
+git commit -am "temporary: prove CI fails" --no-verify
+git push -u origin ci-red-test
+gh pr create -R elderdo/PascalSqliteContactsGUI --title "Temporary: CI should fail" --body "Do not merge"
+gh pr checks -R elderdo/PascalSqliteContactsGUI
+```
+
+`--no-verify` skips the local hook so the bad commit reaches GitHub and CI gets a chance to catch it. Expect the check to fail. When done, close the pull request and delete the branch:
+
+```powershell
+gh pr close ci-red-test -R elderdo/PascalSqliteContactsGUI --delete-branch
+git switch master
+```
+
+#### How to repeat the validation
+
+Do this after any change to the hook, the script, the workflow, or the tests:
+
+1. **Green path:** `powershell -File scripts\run-tests.ps1`, then check that the exit code is 0 (`$LASTEXITCODE`).
+2. **Red path (local):** break a line of code the tests cover, stage it, and run `git commit`. Confirm the commit is aborted and the right test fails. Restore the code afterwards and confirm with `git status`.
+3. **Red path (CI):** push a branch with a deliberately failing test and confirm the check is red. Use `gh run view --log-failed -R elderdo/PascalSqliteContactsGUI` to read why.
+4. **Green path (CI):** fix it and confirm the check turns green.
+5. **Clean up:** remove the broken branch and make sure no temporary edits remain.
+
+#### Why validating the pipeline is important
+
+- **A silent pipeline is worse than none.** If a check never runs, runs the wrong thing, or ignores its exit code, everyone believes the code is protected when it is not. The false confidence is the danger.
+- **The failure path is the whole purpose.** A pipeline exists to stop bad changes. Only deliberately feeding it a bad change shows that it does.
+- **Pipelines have bugs too.** Typical ones are a script that returns 0 even when tests fail, a hook that was never enabled (`core.hooksPath` unset), a workflow that never triggers on the branch you use, or a tool aimed at the wrong repository, as happened here.
+- **Environment differences show up late.** CI starts from nothing, so a missing DLL, a missing install step, or a hard-coded path appears only there. Better to find it now than during a release.
+- **It builds trust.** When a check turns red later, the team will act on it, because it has been seen to catch real problems.
+- **Do it again after changes.** Every edit to the hook, the script, or the workflow can break the safety net without anyone noticing, so repeat the red and green checks above.
 
 ### Why a production app needs tests *and* a pipeline
 
