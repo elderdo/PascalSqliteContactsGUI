@@ -6,9 +6,9 @@ object FrmAddPhone: TFrmAddPhone
   Caption = 'Add Phone'
   ClientHeight = 240
   ClientWidth = 320
+  LCLVersion = '4.6.0.0'
   OnCreate = FormCreate
   OnShow = FormShow
-  LCLVersion = '3.0.0.1'
   object LabelUserPrompt: TLabel
     Left = 20
     Height = 16
@@ -53,8 +53,8 @@ object FrmAddPhone: TFrmAddPhone
     Top = 190
     Width = 75
     Caption = 'Save'
-    OnClick = ButtonSaveClick
     TabOrder = 2
+    OnClick = ButtonSaveClick
   end
   object ButtonCancel: TButton
     Left = 190
@@ -62,7 +62,7 @@ object FrmAddPhone: TFrmAddPhone
     Top = 190
     Width = 75
     Caption = 'Cancel'
-    OnClick = ButtonCancelClick
     TabOrder = 3
+    OnClick = ButtonCancelClick
   end
 end

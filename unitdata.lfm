@@ -2,7 +2,7 @@ object DataModule1: TDataModule1
   OnCreate = DataModuleCreate
   OldCreateOrder = False
   Height = 373
-  HorizontalOffset = 1484
+  HorizontalOffset = 1399
   VerticalOffset = 25
   Width = 258
   object SQLite3Connection1: TSQLite3Connection

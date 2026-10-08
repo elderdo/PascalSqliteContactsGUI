@@ -7,7 +7,7 @@ interface
 uses
   Utils,
   Classes, SysUtils, LCLIntf, SQLite3Conn, SQLDB, DB,
-  LazLogger, LazLoggerBase;
+  LazLogger, LazLoggerBase, LCLType, Windows;
 
 type
 
@@ -92,7 +92,7 @@ begin
                     //       line to simplify string processing.  This is because
                     //       the ExecSQL command will only execute a single statement.
                     //
-                    ResourceStream := TResourceStream.Create(HInstance, 'DATABASE_SCHEMA', RT_RCDATA);
+                    ResourceStream := TResourceStream.Create(HInstance, 'DATABASE_SCHEMA', Windows.RT_RCDATA);
                     SQLScript := TStringList.Create();
                     SQLScript.LoadFromStream(ResourceStream);
 

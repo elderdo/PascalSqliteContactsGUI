@@ -128,7 +128,7 @@ begin
             begin
                 ComboBoxType.Items.Add(DataModule1.QueryPhoneType.FieldByName('Type').AsString);
                 mPhoneTypeIds[i] := DataModule1.QueryPhoneType.FieldByName('Id').AsInteger;
-                WriteLn(Format('mPhoneTypeIds[%d] = %d', [i, mPhoneTypeIds[i]]));
+                //WriteLn(Format('mPhoneTypeIds[%d] = %d', [i, mPhoneTypeIds[i]]));
                 i := i + 1;
                 DataModule1.QueryPhoneType.Next;
             end;

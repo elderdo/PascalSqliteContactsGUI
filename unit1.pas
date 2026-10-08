@@ -9,7 +9,7 @@ uses
   Classes, SysUtils, Forms, Controls, Graphics, Dialogs, Menus, DBGrids,
   StdCtrls, ExtCtrls, SQLDB, DB, SQLite3Conn,
   Types,
-  LazLogger, LazLoggerBase;
+  LazLogger, LazLoggerBase, Windows;
 
 
 type
@@ -38,7 +38,7 @@ type
     procedure ButtonEditClick(Sender: TObject);
     procedure ButtonEditPhoneClick(Sender: TObject);
     procedure ButtonSearchClick(Sender: TObject);
-    procedure DBGridPeopleCellClick(Column: TColumn);
+    procedure DBGridPeopleCellClick({%H-}Column: TColumn);
     procedure FormActivate(Sender: TObject);
     procedure FormCreate(Sender: TObject);
     procedure FormShow(Sender: TObject);
@@ -259,7 +259,7 @@ end;
 
 // When the DB Grid is clicked, it filters the phones list to the selected
 // person only.
-procedure TFormContacts.DBGridPeopleCellClick(Column: TColumn);
+procedure TFormContacts.DBGridPeopleCellClick({%H-}Column: TColumn);
 var
    SelectedId: Integer;
 begin
@@ -319,7 +319,7 @@ begin
           // On OSX I had to install the windres rc compiler, see Lazarus Install
           // Notes in Obsidian.
           //
-          rs := TResourceStream.Create(HInstance, 'CONTACTS_ICON', RT_RCDATA);
+          rs := TResourceStream.Create(HInstance, 'CONTACTS_ICON', Windows.RT_RCDATA);
           img := TPicture.Create();
           img.LoadFromStream(rs);
           Image1.Picture.assign(img);

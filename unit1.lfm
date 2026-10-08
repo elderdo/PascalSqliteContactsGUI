@@ -6,10 +6,10 @@ object FormContacts: TFormContacts
   Caption = 'Hello Contacts DB'
   ClientHeight = 391
   ClientWidth = 864
+  LCLVersion = '4.6.0.0'
   OnActivate = FormActivate
   OnCreate = FormCreate
   OnShow = FormShow
-  LCLVersion = '3.0.0.1'
   object PanelDetails: TPanel
     Left = 412
     Height = 290
@@ -42,8 +42,8 @@ object FormContacts: TFormContacts
       Top = 248
       Width = 75
       Caption = 'Add'
-      OnClick = ButtonAddPhoneClick
       TabOrder = 1
+      OnClick = ButtonAddPhoneClick
     end
     object ButtonEditPhone: TButton
       Left = 120
@@ -51,8 +51,8 @@ object FormContacts: TFormContacts
       Top = 248
       Width = 75
       Caption = 'Edit'
-      OnClick = ButtonEditPhoneClick
       TabOrder = 2
+      OnClick = ButtonEditPhoneClick
     end
     object ButtonDeletePhone: TButton
       Left = 235
@@ -60,8 +60,8 @@ object FormContacts: TFormContacts
       Top = 248
       Width = 75
       Caption = 'Delete'
-      OnClick = ButtonDeletePhoneClick
       TabOrder = 3
+      OnClick = ButtonDeletePhoneClick
     end
   end
   object DBGridPeople: TDBGrid
@@ -97,8 +97,8 @@ object FormContacts: TFormContacts
     Top = 7
     Width = 75
     Caption = 'Search'
-    OnClick = ButtonSearchClick
     TabOrder = 1
+    OnClick = ButtonSearchClick
   end
   object ButtonAdd: TButton
     Left = 440
@@ -106,8 +106,8 @@ object FormContacts: TFormContacts
     Top = 7
     Width = 75
     Caption = 'Add'
-    OnClick = ButtonAddClick
     TabOrder = 2
+    OnClick = ButtonAddClick
   end
   object ButtonDelete: TButton
     Left = 633
@@ -115,8 +115,8 @@ object FormContacts: TFormContacts
     Top = 7
     Width = 75
     Caption = 'Delete'
-    OnClick = ButtonDeleteClick
     TabOrder = 4
+    OnClick = ButtonDeleteClick
   end
   object ButtonEdit: TButton
     Left = 532
@@ -124,8 +124,8 @@ object FormContacts: TFormContacts
     Top = 7
     Width = 75
     Caption = 'Edit'
-    OnClick = ButtonEditClick
     TabOrder = 3
+    OnClick = ButtonEditClick
   end
   object Image1: TImage
     Left = 8
