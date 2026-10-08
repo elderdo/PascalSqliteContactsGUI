@@ -5,7 +5,10 @@ unit Utils;
 interface
 
 uses
-  Classes, SQLDB, StrUtils, SysUtils, Types, LazLogger;
+  Classes, SQLDB, StrUtils, SysUtils, Types, LazLogger, Forms;
+
+  procedure EnsureOnScreen(F: TForm);
+  procedure EnableForeignKeys(Conn: TSQLConnection);
 
   function SplitName(FullName : String) : TStringDynArray;
   function ValidatePhone(number: String) : Int64;
@@ -28,6 +31,31 @@ implementation
 //==============================================================================
 // General Use Functions
 //==============================================================================
+(*
+ *  Moves a form fully inside the work area of the monitor it is nearest to.
+ *  Protects against saved positions on monitors that no longer exist.
+ *)
+procedure EnsureOnScreen(F: TForm);
+var
+    R: TRect;
+begin
+    R := Screen.MonitorFromRect(F.BoundsRect, mdNearest).WorkareaRect;
+    if (F.Left + F.Width > R.Right) then F.Left := R.Right - F.Width;
+    if (F.Top + F.Height > R.Bottom) then F.Top := R.Bottom - F.Height;
+    if (F.Left < R.Left) then F.Left := R.Left;
+    if (F.Top < R.Top) then F.Top := R.Top;
+end;
+
+(*
+ *  SQLite ignores FOREIGN KEY / ON DELETE CASCADE unless foreign keys are
+ *  enabled for each connection. Call this BEFORE setting Connected := true;
+ *  TSQLite3Connection applies the parameter as it connects.
+ *)
+procedure EnableForeignKeys(Conn: TSQLConnection);
+begin
+    Conn.Params.Values['foreign_keys'] := 'ON';
+end;
+
 (*
  *  Split a spring name into individual words, guaranteed to return two entries,
  *  either or both of which may be null.

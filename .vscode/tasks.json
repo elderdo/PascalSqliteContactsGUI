@@ -60,6 +60,13 @@
       "problemMatcher": []
     },
     {
+      "label": "Test",
+      "type": "shell",
+      "command": "C:\\lazarus\\lazbuild.exe tests\\hellocontacts_tests.lpi; if ($?) { .\\tests\\hellocontacts_tests.exe --all --format=plain }",
+      "group": { "kind": "test", "isDefault": true },
+      "problemMatcher": []
+    },
+    {
       "label": "Run",
       "type": "shell",
       "command": ".\\hellocontacts.exe",

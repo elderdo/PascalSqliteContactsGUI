@@ -346,6 +346,7 @@ end;
 
 procedure TFormContacts.FormShow(Sender: TObject);
 begin
+     Utils.EnsureOnScreen(Self);
 
      HideIds();
 end;

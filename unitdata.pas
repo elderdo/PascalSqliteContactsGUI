@@ -74,6 +74,7 @@ begin
 
         SQLite3Connection1.DatabaseName := DBPathName;
         SQLite3Connection1.Transaction := SQLTransaction1;
+        Utils.EnableForeignKeys(SQLite3Connection1);
         if (FileExists(DBPathName)) then
             begin
             SQLite3Connection1.Connected:= true;

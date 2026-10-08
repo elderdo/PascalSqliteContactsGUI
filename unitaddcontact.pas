@@ -73,6 +73,7 @@ end;
 
 procedure TFrmAddContact.FormShow(Sender: TObject);
 begin
+  Utils.EnsureOnScreen(Self);
   if (mEditMode = true) then
       begin
         LabelUserPrompt.Caption := 'Editing Existing User:';

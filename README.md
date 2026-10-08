@@ -19,7 +19,7 @@ This is designed to be the simplest possible SQL database.  There are three rela
 
 ## Documentation
 
-* [Code Guide](./CODE_GUIDE.md): code structure, startup sequence, and what each source file does.
+* [Code Guide](./CODE_GUIDE.md): code structure, startup sequence, what each source file does, and how to run the [unit tests](./CODE_GUIDE.md#unit-tests).
 * [DevLog](./DevLog.MD): development notes.
 
 ## What I Learned
