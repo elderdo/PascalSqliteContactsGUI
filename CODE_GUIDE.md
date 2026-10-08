@@ -531,7 +531,7 @@ A pipeline that has never been seen to fail proves nothing. A check that always 
 Check 3 is the one that matters most. It proves the hook can actually stop a commit, and that the failing test is named so the cause is obvious.
 
 **Not yet validated:**
-- **CI failure path.** The first CI run was green, which shows the happy path works on a clean machine but not that CI can fail. Check 3 covers the local hook only. To prove that CI catches a failing test, push a branch that deliberately breaks a test, open a pull request, and confirm the check turns red. Then delete the branch.
+- **CI failure path: now validated.** A deliberately broken pull request turned CI red and the revert turned it green (see "Worked example: CI failure on a pull request"). Only the failing-test case was exercised in CI; a failing download or install step was not.
 - **CI warning:** the run reported that `actions/checkout@v4` runs on a deprecated Node.js 20 runtime. It still works; update the action version when a newer one is available.
 - **Branch protection.** Confirm a red check really blocks the merge button once the rule is on.
 - **Fresh clone.** Clone the repository into a new folder, run `git config core.hooksPath .githooks`, and make a commit, to prove the setup steps work for someone who is not you.
@@ -643,7 +643,7 @@ Do this after any change to the hook, the script, the workflow, or the tests:
 
 ### Troubleshooting: failures, how to force them, and how to fix them
 
-Seeing a failure on purpose, while you are calm and know the cause, is the best way to learn to read one at 5 pm on a release day. The first two cases below were run for this guide and the output is real (trimmed). The rest are described from how the tools behave and were **not** all reproduced; where output is shown as "expect", treat it as a guide.
+Seeing a failure on purpose, while you are calm and know the cause, is the best way to learn to read one at 5 pm on a release day. The first two cases below, and the CI worked example, were run for this guide and the output is real (trimmed). The rest are described from how the tools behave and were **not** all reproduced; where output is shown as "expect", treat it as a guide.
 
 #### Good vs bad output at a glance
 
@@ -726,9 +726,97 @@ git config core.hooksPath .githooks     # re-enable
 
 **D. Force a missing DLL (case 2).** Temporarily rename the DLL where Windows finds it (for example `tests\sqlite3.dll`) and run the tests. Expect the database tests to report errors rather than failures while the pure-logic tests still pass. Rename it back.
 
-**E. Force CI to fail (cases 8 to 10).** Use step 7 in "Commands used" above (a deliberately broken branch pushed with `--no-verify`). To rehearse a bad download, change the SQLite URL in `ci.yml` on a throwaway branch to one with a typo and read the log with `gh run view <id> --log-failed`. Expect the "Download SQLite DLL" step to turn red and the later steps to be skipped.
+**E. Force CI to fail (cases 8 to 10).** Done for real, see "Worked example: CI failure on a pull request" below. To rehearse a bad download, change the SQLite URL in `ci.yml` on a throwaway branch to one with a typo, open a pull request, and read the log with `gh run view <id> --log-failed`. Expect the "Download SQLite DLL" step to turn red and the later steps to be skipped (not yet run).
 
 **F. Force a blocked merge (case 13).** After turning on branch protection, open a pull request from the broken branch. Expect the merge button to be disabled with "Required statuses must pass".
+
+#### Worked example: CI failure on a pull request, and the fix (real run)
+
+This is the exercise from "Forcing failures", case E, carried out for real on 2026-10-08.
+
+**1. Break it on a throwaway branch and push it (the local hook is skipped on purpose, so CI is the only gate):**
+
+```powershell
+git switch -c ci-red-test
+# change '<= 999999999' to '<= 99999999' in ValidatePhone (utils.pas)
+git commit --no-verify -am "TEMP: deliberately break ValidatePhone to prove CI fails"
+git push -u origin ci-red-test
+gh pr create -R elderdo/PascalSqliteContactsGUI --base master --head ci-red-test --title "TEMP: CI should fail (do not merge)" --body "Deliberate failure"
+```
+
+The workflow only triggers on pushes to `main`/`master` and on pull requests, so the pull request is what starts CI for this branch. Pushing the branch alone does nothing.
+
+**2. Watch it fail:**
+
+```powershell
+gh run list -R elderdo/PascalSqliteContactsGUI --branch ci-red-test --limit 1
+gh run watch <run-id> -R elderdo/PascalSqliteContactsGUI --exit-status
+```
+
+Real result (about 2m51s):
+
+```text
+X test in 2m51s
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Install Lazarus
+  ✓ Download SQLite DLL
+  X Build and run unit tests
+  - Build application            <- skipped, because an earlier step failed
+  ✓ Post Run actions/checkout@v4
+X Process completed with exit code 1.
+```
+
+`--exit-status` makes `gh run watch` return a non-zero exit code when the run fails, which is handy in scripts. Steps before the red one are fine; the `-` step was skipped. That tells you which stage broke before you read any log.
+
+**3. Read why:**
+
+```powershell
+gh run view <run-id> -R elderdo/PascalSqliteContactsGUI --log-failed
+gh pr checks <pr-number> -R elderdo/PascalSqliteContactsGUI
+```
+
+The failed-step log contains exactly what you saw locally:
+
+```text
+NineDigitsIsRejected  Failed:  expected: <-1> but was: <999999999>
+  at ... NineDigitsIsRejected,  line 94 of utilstests.pas
+Number of run tests: 22
+Number of errors:    0
+Number of failures:  1
+##[error]Process completed with exit code 1.
+```
+
+`gh pr checks` shows `test  fail  2m51s` with a link to the run. The same failure appears as a red cross on the pull request page on GitHub.
+
+**4. Fix it.** Here the cause was the deliberate break, so the fix was to undo it. A revert keeps the history honest, and CI re-runs on the new push:
+
+```powershell
+git revert --no-edit HEAD
+git push
+gh run watch <run-id> -R elderdo/PascalSqliteContactsGUI --exit-status
+gh pr checks <pr-number> -R elderdo/PascalSqliteContactsGUI
+```
+
+Real result: every step green (`✓ test in 2m55s`) and `gh pr checks` printed `test  pass  2m55s`. For a genuine bug the fix is the same loop: read the failing test, reproduce it locally with `scripts\run-tests.ps1`, fix the code, push, and wait for green.
+
+**5. Clean up:**
+
+```powershell
+gh pr close <pr-number> -R elderdo/PascalSqliteContactsGUI --delete-branch
+git switch master
+git branch -D ci-red-test
+```
+
+Nothing from the exercise was merged, so `master` was untouched.
+
+**What this proved:**
+- CI really fails when a test fails (a gate that cannot fail would be worthless).
+- It fails on the right step, with a log that names the test and line.
+- The failure is visible from the command line and on the pull request.
+- Fixing the code turns it green again, so a green check can be trusted.
+
+**Still not proven:** that GitHub *blocks the merge* of a red pull request. That needs branch protection (case 13), which has to be turned on in the repository settings. Until then a red check warns, but it does not stop anyone from merging.
 
 #### A debugging routine that works for every case
 
