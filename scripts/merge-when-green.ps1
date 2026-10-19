@@ -4,6 +4,11 @@
 
   Stops without merging if CI fails or the PR is not mergeable. Exit code 0 = merged.
   See docs\RUNBOOK.md for the full process and why each step exists.
+
+  Prerequisites: the GitHub CLI (gh) is installed and signed in (gh auth status).
+  Run it from a clone whose checked-out branch contains this script, and do not edit files
+  or switch branches while it waits, because step 5 changes branches.
+  Exit codes: 0 = merged and synced, 1 = stopped without merging (the message says why).
 #>
 param(
     [Parameter(Mandatory)][int]$Pr,
@@ -44,7 +49,12 @@ if ($info.state -ne 'OPEN' -or $info.mergeable -ne 'MERGEABLE') {
 
 # 4. Squash-merge and delete the remote branch.
 gh pr merge $Pr -R $Repo --squash --delete-branch
-if ($LASTEXITCODE -ne 0) { Write-Host 'Merge failed.'; exit 1 }
+if ($LASTEXITCODE -ne 0) {
+    # Typical cause: master moved on while CI ran ("head branch is not up to date").
+    Write-Host 'Merge failed. If the branch is behind master, run: git fetch origin; git merge origin/master; git push'
+    Write-Host 'then run this script again (CI restarts on the new push).'
+    exit 1
+}
 
 # 5. Sync the local clone. -D is needed because a squashed branch is not seen as merged by git.
 git checkout master
