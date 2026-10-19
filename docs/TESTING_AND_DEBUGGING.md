@@ -129,6 +129,30 @@ All commands are run in PowerShell from the repository root.
 
 Branch, small commits, hook, push, PR, CI, squash-merge. Each step is a checkpoint: the hook catches mistakes on your machine, CI catches environment differences, and the PR template records what was tested and what was not.
 
+## Reading CI logs and artifacts
+
+A GUI test on a server cannot be watched, so the CI job records evidence instead. This is the standard approach for GUI apps in CI.
+
+- **Log:** every step's output is in the job log. `gh run view <run-id> -R elderdo/PascalSqliteContactsGUI --log` (finished runs only) or `--log-failed` for failing steps only. In the browser: Actions tab, the run, then the step.
+- **Artifact `gui-evidence`:** `gui-tests.log` (full PASS/FAIL output, kept even when the step passes) and, only on failure, `failure.png`, a screenshot of the runner's desktop that shows any dialog left on screen. The upload step uses `if: always()` so the evidence is saved even when the test fails. Download with `gh run download <run-id> -R elderdo/PascalSqliteContactsGUI -n gui-evidence`.
+- **Artifact `test-results`:** the unit-test XML.
+- **Why:** a failed GUI step otherwise says only "exit code 1". The log tells you which check failed, and the screenshot shows what the app was doing. Not yet exercised on a failing run (the screenshot code has only run on a passing run, where it is skipped).
+- Re-run with more detail from the browser: **Re-run jobs**, then "Enable debug logging".
+
+## After a squash-merge: sync your clone
+
+Pull requests here are squash-merged. GitHub replaces the branch's commits with one new commit on `master`, so the local branch is no longer part of `master`'s history. Reusing it would show the old commits as "different" and cause conflicts. The routine, and why:
+
+| Command | Why |
+|---|---|
+| `git checkout master` | Leave the finished branch. |
+| `git pull` | Download the squash commit so local `master` matches GitHub. |
+| `git branch -D <branch>` | Delete the local branch. `-D` (force) is needed because git cannot see that a squashed branch was merged; its commits are not in `master`. Only do this after confirming the PR shows MERGED (`gh pr view <n> --json state`). |
+| `git remote prune origin` | Forget remote branches that GitHub already deleted (`--delete-branch` removed the remote one). |
+| `git checkout -b <new-branch>` | Start the next change from the updated `master`. |
+
+Check the result with `git log -1` (one squash commit, with the Copilot co-author trailers kept) and `git status` (clean).
+
 ## Checklist to copy into a PR or ticket
 
 - [ ] Reproduced the bug and noted the exact steps
