@@ -419,6 +419,7 @@ View results on GitHub under the repository's **Actions** tab, or as a check mar
 ### Limits and notes
 
 - **Not covered:** the forms ([unit1.pas](./unit1.pas), [unitaddcontact.pas](./unitaddcontact.pas), [unitaddphone.pas](./unitaddphone.pas)) and `UnitData`'s startup logic. Only `Utils` and database behavior are tested. Moving logic out of the forms and into `Utils` makes more of the app testable.
+- **GUI tests:** `powershell -NoProfile -File scripts\gui-tests.ps1` builds the app, launches `hellocontacts.exe`, and drives it with Windows UI Automation and Win32 messages: Search, Add, Edit, and Delete (Cancel keeps the row, OK removes it). Results are verified by querying the SQLite file, because the DB grids are custom-drawn and not readable through UI Automation. The script backs up `%LOCALAPPDATA%\hellocontacts\helloContacts.db` first and always restores it afterwards (deleting it if it did not exist), and uses made-up `Zzgui` names. Run it with the app closed and without touching the mouse or keyboard. It runs in the pre-commit hook after the unit tests and in CI after the build. It uses `sqlite3.exe` if on PATH, otherwise Python's `sqlite3` module. Phone Add/Edit/Delete are not covered. The CI step and the Python fallback have not been run yet.
 - **SQLite DLL:** the database tests need `sqlite3.dll` to be findable, just like the app.
 - **Windows temp folder:** if a test run is killed mid-way, a leftover `hellocontacts_test_*.db` file may remain in `%TEMP%`. It is safe to delete.
 - **Existing data:** tests never change your real database, so the cascade fix does not clean up orphans already there.
@@ -891,6 +892,8 @@ The pipeline above is extended with change-control and evidence practices, docum
 
 ## Known quirks and TODOs
 
+- `WriteLn` must not be used: the app is a GUI program with no console, so it raises RunError 103. Use `DebugLn` (LazLogger).
+- All writes in [utils.pas](./utils.pas) use `CommitRetaining`, not `Commit`. A plain `Commit` closes every query on the shared transaction, including the grids, which then fail with "inactive dataset".
 - Both dialogs repeat the same edit-mode code. A TODO in [unitaddphone.pas](./unitaddphone.pas) suggests a shared base class.
 - SQL for add/edit/delete is assembled with `QuotedStr` / `Format`. Parameterized queries would be safer.
 - `Utils.ShowException` only logs to the debug console; the user sees no error dialog.
