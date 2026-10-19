@@ -210,6 +210,7 @@ begin
          end;
      end;
     finally
+        DataModule1.EnsureMainQueriesActive();
         DataModule1.QueryPeople.Refresh();
         DBGridPeople.Refresh();
         HideIds();
@@ -250,6 +251,7 @@ procedure TFormContacts.ButtonDeletePhoneClick(Sender: TObject);
             end;
         end;
        finally
+           DataModule1.EnsureMainQueriesActive();
            DataModule1.QueryPhones.Refresh();
            DBGridPhones.Refresh();
            HideIds();
@@ -280,6 +282,7 @@ begin
         end;
     end;
   finally
+       DataModule1.EnsureMainQueriesActive();
        DataModule1.QueryPhones.Refresh();
        DBGridPhones.Refresh();
        HideIds();

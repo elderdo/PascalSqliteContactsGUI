@@ -160,8 +160,8 @@ begin
       // ApplyUpdates(); - Needed to save when editing an existing record
       if (Q.Transaction.Active) then
           begin
-          // Cast the transaction property of the query to TSQLTr...
-          TSQLTransaction(Q.Transaction).Commit();
+          // CommitRetaining keeps other open queries (the grids) on this transaction open
+          TSQLTransaction(Q.Transaction).CommitRetaining();
           end;
 
 
@@ -212,8 +212,8 @@ begin
       // ApplyUpdates(); - Needed to save when editing an existing record
       if (Q.Transaction.Active) then
           begin
-          // Cast the transaction property of the query to TSQLTr...
-          TSQLTransaction(Q.Transaction).Commit();
+          // CommitRetaining keeps other open queries (the grids) on this transaction open
+          TSQLTransaction(Q.Transaction).CommitRetaining();
           end;
 
    except
@@ -244,10 +244,13 @@ try
     DebugLn(SqlString);
     Q.sql.text := SqlString;
     Q.execSql;
-    // Delete query is automatically committed, no need for Transaction.commit
+    if (Q.Transaction.Active) then
+        TSQLTransaction(Q.Transaction).CommitRetaining();
 except
     on E: Exception do
     begin
+        if (Q.Transaction.Active) then
+            TSQLTransaction(Q.Transaction).Rollback();
         ShowException(E);
     end;
 end;
@@ -316,8 +319,8 @@ begin
       // ApplyUpdates(); - Needed to save when editing an existing record
       if (Q.Transaction.Active) then
           begin
-          // Cast the transaction property of the query to TSQLTr...
-          TSQLTransaction(Q.Transaction).Commit();
+          // CommitRetaining keeps other open queries (the grids) on this transaction open
+          TSQLTransaction(Q.Transaction).CommitRetaining();
           end;
 
 
@@ -373,8 +376,8 @@ begin
       // ApplyUpdates(); - Needed to save when editing an existing record
       if (Q.Transaction.Active) then
           begin
-          // Cast the transaction property of the query to TSQLTr...
-          TSQLTransaction(Q.Transaction).Commit();
+          // CommitRetaining keeps other open queries (the grids) on this transaction open
+          TSQLTransaction(Q.Transaction).CommitRetaining();
           end;
 
    except
@@ -404,10 +407,13 @@ begin
        DebugLn(SqlString);
        Q.sql.text := SqlString;
        Q.execSql;
-       // Delete query is automatically committed, no need for Transaction.commit
+       if (Q.Transaction.Active) then
+           TSQLTransaction(Q.Transaction).CommitRetaining();
     except
         on E: Exception do
         begin
+            if (Q.Transaction.Active) then
+                TSQLTransaction(Q.Transaction).Rollback();
             ShowException(E);
         end;
     end;
