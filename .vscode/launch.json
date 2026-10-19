@@ -1,0 +1,16 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug hellocontacts (gdb)",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}\\hellocontacts.exe",
+      "cwd": "${workspaceFolder}",
+      "MIMode": "gdb",
+      "miDebuggerPath": "C:\\lazarus\\mingw\\x86_64-win64\\bin\\gdb.exe",
+      "stopAtEntry": false,
+      "preLaunchTask": "Build"
+    }
+  ]
+}
