@@ -4,6 +4,8 @@ The one-page procedure for taking a problem from "something is broken" to "fixed
 
 Repository: `elderdo/PascalSqliteContactsGUI`. Windows, PowerShell, run from the repository root.
 
+**Summary:** every change follows the same gates: a failing test first, two local test suites (unit and GUI), a pre-commit hook, a pull request with recorded test evidence, a required CI check on a clean runner, a squash-merge, and a documented clean-up. The mechanical steps are scripted (`run-tests.ps1`, `gui-tests.ps1`, `merge-when-green.ps1`), and each script has beginner-level comments.
+
 ## The loop at a glance
 
 ```
@@ -114,6 +116,8 @@ Then start the next change from the updated `master`. Never reuse a squash-merge
 
 | Symptom | Likely cause | Action |
 |---|---|---|
+| A wait script gives up with "no checks reported" | Checks are registered a few seconds after a push; matching on `gh` message text is fragile | Poll `gh pr view <n> --json statusCheckRollup -q '.statusCheckRollup \| length'` until it is above 0 (this is what `merge-when-green.ps1` does) |
+| A PowerShell script dies on `gh` output with `$ErrorActionPreference = 'Stop'` | Windows PowerShell treats native stderr as an error | Use `Continue` and check `$LASTEXITCODE` explicitly |
 | Build fails with a file-in-use error | `hellocontacts.exe` is still running | Close it (`Get-Process hellocontacts` then `Stop-Process -Id <pid>`) |
 | GUI test says "Close hellocontacts.exe first" | Same | Same |
 | GUI test fails about half the time | A flaky interaction, often the test itself | Run 10 times, dump what is on screen and the DB, find the cause before changing the app |
