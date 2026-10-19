@@ -5,7 +5,7 @@ unit UnitAddPHone;
 interface
 
 uses
-  UnitData, Utils,
+  UnitData, Utils, LazLogger,
   Classes, SysUtils, Forms, Controls, Graphics, Dialogs, StdCtrls;
 
 type
@@ -70,13 +70,13 @@ begin
 
           if (mEditMode = false) then
           begin
-               WriteLn(Format('Add Phone: PersonId: %d Ph Type Index: %d, Ph: %d',
+               DebugLn(Format('Add Phone: PersonId: %d Ph Type Index: %d, Ph: %d',
                               [mPersonId, mPhoneTypeIds[ComboBoxType.ItemIndex], Number]));
                Utils.AddPhone(DataModule1.QueryInsert, mPersonId, IntToStr(Number), mPhoneTypeIds[ComboBoxType.ItemIndex]);
           end
           else
           begin
-              WriteLn(Format('Edit Phone: Id: %d, PersonId: %d Ph Type Index: %d, Ph: %s',
+              DebugLn(Format('Edit Phone: Id: %d, PersonId: %d Ph Type Index: %d, Ph: %s',
                              [mPhoneId, mPersonId, mPhoneTypeIds[ComboBoxType.ItemIndex], EditNumber.Text]));
               Utils.EditPhone(DataModule1.QueryInsert, mPhoneId,  mPersonId, EditNumber.Text, mPhoneTypeIds[ComboBoxType.ItemIndex]);
           end;
@@ -186,10 +186,10 @@ begin
      i := ComboBoxType.Items.Count;
      while (i > 0) do
      begin
-         Writeln(Format('Comparing %d', [mPhoneTypeIds[i-1]]));
+         DebugLn(Format('Comparing %d', [mPhoneTypeIds[i-1]]));
          if (mPhoneTypeIds[i-1] = Id) then
              begin
-             Writeln('Matches: ',  Id);
+             DebugLn('Matches: ' + IntToStr(Id));
              ComboBoxType.ItemIndex := i-1;
              end;
          i := i - 1;
