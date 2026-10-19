@@ -50,7 +50,7 @@ powershell -File scripts\run-tests.ps1       # run the unit tests
 * [Requirements and traceability](./docs/REQUIREMENTS.md)
 * [Compliance considerations](./docs/COMPLIANCE.md)
 * [AI-assisted development](./docs/AI_WORKFLOW.md) and [AI selection and prompts](./docs/AI_PROMPTS.md)
-* [Case study](./docs/CASE_STUDY.md), [branching and merges](./docs/BRANCHING_AND_MERGING.md) and [testing and debugging strategy](./docs/TESTING_AND_DEBUGGING.md)
+* [Case study](./docs/CASE_STUDY.md), [code walkthrough (temporary code and refactors)](./docs/CODE_WALKTHROUGH.md), [branching and merges](./docs/BRANCHING_AND_MERGING.md) and [testing and debugging strategy](./docs/TESTING_AND_DEBUGGING.md)
 * [Demo script](./docs/DEMO_SCRIPT.md)
 * [Security policy](./SECURITY.md) and [Changelog](./CHANGELOG.md)
 * [DevLog](./DevLog.MD): development notes.
