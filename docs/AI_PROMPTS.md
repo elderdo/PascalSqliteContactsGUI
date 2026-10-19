@@ -77,6 +77,16 @@ A good prompt has five parts. Missing parts are the usual cause of poor answers.
 - **Say when to stop.** "Do not merge", "do not push" and "ask me before deleting" are respected.
 - **You decide.** AI proposes; the tests verify; a human approves and merges.
 
+## Keeping your AI chats as a learning record
+
+A chat is a useful teaching artifact: it shows the wrong turns as well as the fix. Ways to keep it:
+
+- **Built in:** the Copilot CLI may offer a share/export command (try `/help` in the CLI to see what your version supports). I have not verified the exact command name here.
+- **Local session files:** the CLI stores each session under `%USERPROFILE%\.copilot\session-state\<session-id>\`. `events.jsonl` is the full event log (large; includes tool output and local paths). `files\` holds notes for that session.
+- **A readable transcript:** a small script can keep only your messages and the assistant's replies. This project's session was exported that way (36 of your messages, 106 replies, about 50 KB) with a throwaway converter that reads `events.jsonl` and writes Markdown.
+- **Before you publish or share a transcript**, read it. Remove tokens, private paths, customer data and anything you would not post publicly. Keep it out of the repository unless you have reviewed it; a transcript is not a substitute for the docs and the PR history, which are the durable record.
+- **Pair it with the code:** [CODE_WALKTHROUGH.md](./CODE_WALKTHROUGH.md) shows the temporary code and the refactors from this project in one place, which a raw chat does not.
+
 ## Anti-patterns
 
 | Do not | Do instead |
