@@ -131,6 +131,44 @@ git status                    # should be clean
 ```
 Then start the next change from the updated `master`. Never reuse a squash-merged branch.
 
+## Debugging in VS Code (run, break, step, inspect)
+
+**Run without the debugger:** `Ctrl+Shift+P` > **Tasks: Run Task** > **Build**, then **Run** (or **Clean, Build and Run**). `Run` does not build first.
+
+**Run with the debugger:** open **Run and Debug** (`Ctrl+Shift+D`), choose **Debug hellocontacts (gdb)**, press `F5`. `.vscode\launch.json` runs the `Build` task, then starts `hellocontacts.exe` under `gdb.exe` (type `cppdbg`, from the *C/C++* extension `ms-vscode.cpptools`). Close any running copy of the app first, or the build fails.
+
+| Action | Key | Panel |
+|---|---|---|
+| Set a breakpoint | Click the margin beside a line in a `.pas` file | Breakpoints |
+| Continue / step over / into / out | `F5` / `F10` / `F11` / `Shift+F11` | |
+| Call stack | | Call Stack |
+| Local variables | | Variables |
+| Any gdb command | Type `-exec <command>` | Debug Console |
+
+### What the debugger really shows
+
+The VS Code UI could not be driven from the session that wrote this, so the evidence below comes from the **same `gdb.exe` and `hellocontacts.exe`** run in batch mode with a breakpoint in `TFormContacts.FormCreate` (`unit1.pas`). The panels use the same data, but the click-through in VS Code itself has **not** been verified.
+
+| Observation (gdb output) | What it means |
+|---|---|
+| `Breakpoint 1 at ...: file unit1.pas, line 325` after asking for line 322 | A breakpoint on a line with no code moves to the next line that has code. |
+| `#0 FormCreate (this=..., Sender=...) at unit1.pas:325`, then `#1 DOCREATE ... customform.inc:923` ... `#5 $main () at hellocontacts.lpr:26` | The call stack works and shows the LCL frames and the line in the `.lpr` that created the form. |
+| `rs = 0x0`, `img = 0x13fff01` before the assignments; `rs = 0x1593db0`, `img = 0x158c820` after | Locals work, but **objects show only as pointers**. Before assignment a local is garbage (`img`), not `nil`. |
+| `p rs.FSize` printed `1897`; `p rs.Size` failed with "has no component named Size"; `p Self.Caption` failed the same way | **Fields** (`FSize`) can be printed. **Properties** (`Size`, `Caption`) cannot, because they are not stored data. Read the field behind the property. |
+| `p *rs` gave a syntax error | Use `p rs.FField`, not `p *rs`. |
+| `next` at a constructor call stopped in `CLASSES$_$TRESOURCESTREAM_$__$$_CREATE` ("no line number information") | Stepping with `F10` can land inside RTL code that has no source. Put a **second breakpoint on the next line** and press `F5` instead. |
+
+**Practical rules**
+1. Prefer breakpoints on the lines you care about plus `F5` over long runs of `F10`.
+2. In the Debug Console use `-exec p <variable>.<FField>`; `-exec info locals` and `-exec bt` print locals and the stack.
+3. Strings and properties are weak in gdb. For those, debug in **Lazarus** (`F9`, then *View > Debug Windows*), which understands Pascal types. Both debug the same exe.
+4. The app has no console. `DebugLn` output does not appear in the Debug Console.
+
+**Repeat the batch check** (no VS Code needed; app closed first):
+```powershell
+C:\lazarus\mingw\x86_64-win64\bin\gdb.exe -q -batch -ex "break unit1.pas:328" -ex "run" -ex "info locals" -ex "bt 3" -ex "kill" .\hellocontacts.exe
+```
+
 ## When something goes wrong
 
 | Symptom | Likely cause | Action |
