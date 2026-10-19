@@ -12,8 +12,12 @@ It began as a "Hello World" for SQLite in Pascal, for two reasons:
 
 | Practice | Where to look |
 |---|---|
-| Automated unit tests (22 FPCUnit tests; one found a real bug) | [CODE_GUIDE.md: Unit tests](./CODE_GUIDE.md#unit-tests) |
-| Local quality gate (pre-commit hook runs the tests) | [.githooks/pre-commit](./.githooks/pre-commit) |
+| Automated unit tests (30 FPCUnit tests; they found real bugs) | [CODE_GUIDE.md: Unit tests](./CODE_GUIDE.md#unit-tests) |
+| Automated GUI end-to-end test (Search, Add, Edit, Delete) in the hook and in CI | [scripts/gui-tests.ps1](./scripts/gui-tests.ps1) |
+| Local quality gate (pre-commit hook runs unit and GUI tests) | [.githooks/pre-commit](./.githooks/pre-commit) |
+| A case study: bug to fix to green CI, with the AI's role and mistakes | [docs/CASE_STUDY.md](./docs/CASE_STUDY.md) |
+| Repeatable testing and debugging method, with every command explained | [docs/TESTING_AND_DEBUGGING.md](./docs/TESTING_AND_DEBUGGING.md) |
+| Which AI to use and prompts that work | [docs/AI_PROMPTS.md](./docs/AI_PROMPTS.md) |
 | CI on every push and pull request, with retained test evidence | [ci.yml](./.github/workflows/ci.yml) |
 | Verified pipeline (red and green paths shown for real) | [CODE_GUIDE.md: Validating the pipeline](./CODE_GUIDE.md#validating-the-pipeline) |
 | Requirements traced to tests, with gaps shown | [docs/REQUIREMENTS.md](./docs/REQUIREMENTS.md) |
@@ -45,7 +49,8 @@ powershell -File scripts\run-tests.ps1       # run the unit tests
 * [Code Guide](./CODE_GUIDE.md): code structure, startup sequence, what each source file does, the tests, and the CI/CD pipeline with troubleshooting.
 * [Requirements and traceability](./docs/REQUIREMENTS.md)
 * [Compliance considerations](./docs/COMPLIANCE.md)
-* [AI-assisted development](./docs/AI_WORKFLOW.md)
+* [AI-assisted development](./docs/AI_WORKFLOW.md) and [AI selection and prompts](./docs/AI_PROMPTS.md)
+* [Case study](./docs/CASE_STUDY.md) and [testing and debugging strategy](./docs/TESTING_AND_DEBUGGING.md)
 * [Demo script](./docs/DEMO_SCRIPT.md)
 * [Security policy](./SECURITY.md) and [Changelog](./CHANGELOG.md)
 * [DevLog](./DevLog.MD): development notes.
