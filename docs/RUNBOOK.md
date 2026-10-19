@@ -131,7 +131,15 @@ git status                    # should be clean
 ```
 Then start the next change from the updated `master`. Never reuse a squash-merged branch.
 
+## Debugging: use Lazarus for interactive work, VS Code for everything else
+
+**Recommendation:** for interactive debugging (breakpoints, stepping, inspecting variables, strings, properties and the call stack) use the **Lazarus IDE**. Its debugger understands Pascal types and properties. VS Code runs gdb, which does not (see the evidence below). Use VS Code for editing, running the scripts and tests, and the CI/CD work. Both debug the same `hellocontacts.exe`.
+
+**Debug in Lazarus:** open `hellocontacts.lpi`, click the margin to set a breakpoint, press `F9` to run. Step with `F8` (over) and `F7` (into). Open **View > Debug Windows** for *Local Variables*, *Watches*, *Call Stack* and *Evaluate/Modify*. This was **not run in this session**; it is the standard Lazarus workflow, and the project builds with DWARF debug info.
+
 ## Debugging in VS Code (run, break, step, inspect)
+
+This section is the fallback and documents what works and what does not.
 
 **Run without the debugger:** `Ctrl+Shift+P` > **Tasks: Run Task** > **Build**, then **Run** (or **Clean, Build and Run**). `Run` does not build first.
 
@@ -161,7 +169,7 @@ The VS Code UI could not be driven from the session that wrote this, so the evid
 **Practical rules**
 1. Prefer breakpoints on the lines you care about plus `F5` over long runs of `F10`.
 2. In the Debug Console use `-exec p <variable>.<FField>`; `-exec info locals` and `-exec bt` print locals and the stack.
-3. Strings and properties are weak in gdb. For those, debug in **Lazarus** (`F9`, then *View > Debug Windows*), which understands Pascal types. Both debug the same exe.
+3. Strings and properties are weak in gdb, so for those switch to Lazarus (see the recommendation above).
 4. The app has no console. `DebugLn` output does not appear in the Debug Console.
 
 **Repeat the batch check** (no VS Code needed; app closed first):
