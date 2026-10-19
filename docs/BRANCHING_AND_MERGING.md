@@ -31,7 +31,7 @@ Not enforced today: a required human approval (`required_approving_review_count`
 | `fix/` | bug fixes | `fix/gui-crashes-and-gui-tests` |
 | `ci/` | pipeline changes | `ci/gui-diagnostics` |
 | `docs-` | documentation only | `docs-roadmap` |
-| `dependabot/...` | automatic dependency updates | `dependabot/github_actions/actions/checkout-7` |
+| `dependabot/...` | automatic dependency updates; group several into one PR when they touch the same workflows, so CI tests them together | `dependabot/github_actions/actions/checkout-7` |
 | `*-test` | throwaway branches that prove a gate works, then closed unmerged | `ci-red-test`, `merge-block-test` |
 
 ## Life of a change (the routine)
@@ -64,8 +64,9 @@ From `gh pr list --state all` and `git log master --first-parent` (dates UTC).
 | #7 | `docs-validation-results` | Merged (squash), 2026-10-08 | Recorded branch-protection and release validation |
 | #8 | `docs-roadmap` | Merged (squash), 2026-10-08 | Roadmap and DI refactoring plan |
 | #10 | `fix/gui-crashes-and-gui-tests` | Merged (squash), 2026-10-19, commit `947195c` | `WriteLn` crash fix, commit/dataset fixes, GUI tests, hook and CI step, docs. Seven branch commits became one |
-| #11 | `ci/gui-diagnostics` | Open when this was written | GUI log and failure-screenshot artifacts, AI guide, case study |
-| #3, #4, #9 | Dependabot action bumps | Open | Not reviewed or merged yet |
+| #11 | `ci/gui-diagnostics` | Merged (squash), 2026-10-19, commit `b49a1e4` | GUI log and failure-screenshot artifacts, AI guide, case study, branching doc |
+| #12 | `ci/bump-actions` | Merged (squash), 2026-10-19, commit `7dc02d2` | `checkout` 5 to 7, `upload-artifact` 4 to 7, `attest-build-provenance` 2 to 4. Replaced Dependabot #3, #4 and #9 in one tested change. `release.yml` is not exercised until the next tag |
+| #3, #4, #9 | Dependabot action bumps | Closed as superseded by #12 | Same bumps, merged together instead of separately |
 
 The branch protection rule was verified (see [CODE_GUIDE.md](../CODE_GUIDE.md#cicd-pipeline-architecture-and-setup)) by the two closed `*-test` PRs: one showed a red build, the other showed that merge is blocked while it is red.
 
