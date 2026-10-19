@@ -77,6 +77,58 @@ Covered: Search, Add, Edit, Delete (including Cancel). Not covered: phone Add/Ed
 
 The pipeline is: branch, commit (hook runs both suites), push, PR (template with the exact commands and results), CI re-runs everything on a clean machine, squash-merge to `master`. Because the same scripts run in every place, a green CI is a strong signal and no manual re-testing is needed. If the CI GUI step cannot run on a hosted runner (no interactive desktop), make that one step non-blocking and keep the hook as the gate. Whether this is needed has not been confirmed yet.
 
+## Command reference: what was run and why
+
+All commands are run in PowerShell from the repository root.
+
+### Build and test
+
+| Command | What it does and why |
+|---|---|
+| `lazbuild hellocontacts.lpi` | Compiles the app from the command line (no IDE). `-B` forces a full rebuild; use it when a stale build is suspected. |
+| `lazbuild -B --opt=-gl hellocontacts.lpi` | Rebuild with `-gl`, which adds line-number information so a crash can be traced to a source location. Debug builds only. |
+| `powershell -NoProfile -File scripts\run-tests.ps1` | Builds and runs the unit tests. `-NoProfile` skips your personal profile so the run behaves the same on every machine. `-File` runs the script and passes its exit code back. |
+| `powershell -NoProfile -File scripts\gui-tests.ps1` | Runs the end-to-end GUI test (see above). |
+| `$LASTEXITCODE` | PowerShell variable holding the exit code of the last program. 0 = success. Used to confirm each run. |
+| `Start-Job { ... }` with `Wait-Job -Timeout 150` | Runs the GUI test in the background with a time limit. If a dialog blocks the app, the run is stopped instead of hanging forever. |
+| `Get-Process hellocontacts \| % { $_.Kill() }` | Closes a leftover copy of the app after a timed-out run. It is by name on purpose: only this app is affected. |
+
+### Inspecting data and crashes
+
+| Command | What it does and why |
+|---|---|
+| `sqlite3 <db> "select count(*) from People"` | Reads the database from outside the app to prove a change was really saved. The DB is at `%LOCALAPPDATA%\hellocontacts\helloContacts.db`. |
+| `gdb -batch -ex "info symbol 0x..." hellocontacts.exe` | Turns a raw crash address from the exception logger into a procedure name. `-batch` runs the commands and exits. The `gdb.exe` is bundled with Lazarus under `C:\lazarus\mingw\x86_64-win64\bin`. |
+
+### Git: keeping changes small and safe
+
+| Command | What it does and why |
+|---|---|
+| `git checkout -b fix/gui-crashes-and-gui-tests` | Creates and switches to a branch so `master` stays untouched until the PR is merged. |
+| `git status --short` | One line per changed file. Run before every commit to see exactly what will be included. |
+| `git diff --cached --stat` | Summary of what is staged. Confirms each commit contains only its own files. |
+| `git add <files>` | Stages specific files. Naming files (not `git add .`) lets one set of changes be split into small commits. |
+| `git commit -m "title" -m "body" -m "Co-authored-by: ..."` | Records the commit. Each `-m` adds a paragraph. The last one is the trailer that credits the AI assistant. The pre-commit hook runs here and blocks the commit if tests fail. |
+| `git --no-pager log --oneline -6` | Shows recent commits on one line each. `--no-pager` stops git from opening an interactive viewer, which would hang a script. |
+| `git push -u origin <branch>` | Uploads the branch. `-u` remembers it, so later a plain `git push` works. |
+| `git commit --no-verify` | Skips the hook. **Not used.** It exists, but it defeats the safety net. |
+
+### GitHub CLI (`gh`)
+
+`gh` is GitHub's command-line tool. **Always pass `-R elderdo/PascalSqliteContactsGUI`.** On this machine `gh` can guess the wrong repository, and `-R` removes the guess.
+
+| Command | What it does and why |
+|---|---|
+| `gh pr create -R elderdo/PascalSqliteContactsGUI --base master --head fix/gui-crashes-and-gui-tests --title "..." --body-file pr-body.md` | Opens the pull request. `--base` is where the change will land, `--head` is your branch. `--body-file` reads the description from a file filled in from `.github\PULL_REQUEST_TEMPLATE.md` (what/why, checklist, AI disclosure, test evidence with exact commands and results). |
+| `gh run list -R elderdo/PascalSqliteContactsGUI -b <branch> -L 1 --json status,conclusion,url` | Shows the latest CI run for the branch. `-b` filters by branch, `-L 1` limits to one run, `--json` gives machine-readable output. |
+| `gh run watch -R elderdo/PascalSqliteContactsGUI <run-id> --exit-status` | Waits for the run to finish and live-prints progress. `--exit-status` makes the command fail if CI fails, so it can be used in scripts. |
+| `gh run view <run-id> --log-failed` | If CI fails, prints only the failing steps' logs (not yet needed). |
+| `gh pr merge <number> -R elderdo/PascalSqliteContactsGUI --squash --delete-branch` | After CI is green: squashes the commits into one on `master` and deletes the branch. `master` is protected, so this only works through a PR. |
+
+### Why this order
+
+Branch, small commits, hook, push, PR, CI, squash-merge. Each step is a checkpoint: the hook catches mistakes on your machine, CI catches environment differences, and the PR template records what was tested and what was not.
+
 ## Checklist to copy into a PR or ticket
 
 - [ ] Reproduced the bug and noted the exact steps
