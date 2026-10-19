@@ -14,11 +14,16 @@ param(
 # 'Stop' would turn that into a script error, so exit codes are checked explicitly instead.
 $ErrorActionPreference = 'Continue'
 
-# 1. Right after a push GitHub needs a few seconds to register the checks.
+# 1. Right after a push GitHub needs a few seconds to register the checks. Count them from the
+#    PR's JSON instead of matching message text, which is not a stable interface.
 for ($i = 0; $i -lt 30; $i++) {
-    $out = gh pr checks $Pr -R $Repo 2>&1 | Out-String
-    if ($out -notmatch 'no checks reported') { break }
+    $count = gh pr view $Pr -R $Repo --json statusCheckRollup -q '.statusCheckRollup | length' 2>$null
+    if ($count -and [int]$count -gt 0) { break }
     Start-Sleep -Seconds 10
+}
+if (-not $count -or [int]$count -eq 0) {
+    Write-Host "No CI checks appeared for PR $Pr after 5 minutes. Not merging."
+    exit 1
 }
 
 # 2. Wait for the checks. Exit code 0 = all passed, anything else = failed or error.
