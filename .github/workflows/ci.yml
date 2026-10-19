@@ -60,4 +60,24 @@ jobs:
         shell: pwsh
         run: |
           Copy-Item tests\sqlite3.dll .\sqlite3.dll
-          ./scripts/gui-tests.ps1
+          New-Item -ItemType Directory -Force gui-evidence | Out-Null
+          # Keep the full output as evidence while still showing it in the job log
+          ./scripts/gui-tests.ps1 *>&1 | Tee-Object -FilePath gui-evidence\gui-tests.log
+          $code = $LASTEXITCODE
+          if ($code -ne 0) {
+            # A screenshot of the runner's desktop shows any dialog left on screen
+            Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+            $b = [System.Windows.Forms.SystemInformation]::VirtualScreen
+            $bmp = New-Object System.Drawing.Bitmap $b.Width, $b.Height
+            [System.Drawing.Graphics]::FromImage($bmp).CopyFromScreen($b.Location, [System.Drawing.Point]::Empty, $b.Size)
+            $bmp.Save('gui-evidence\failure.png')
+          }
+          exit $code
+
+      - name: Upload GUI test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gui-evidence
+          path: gui-evidence/
+          if-no-files-found: ignore

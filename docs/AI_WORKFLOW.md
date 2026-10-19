@@ -45,6 +45,8 @@ Written down in [AGENTS.md](../AGENTS.md) and [.github/copilot-instructions.md](
 
 ## Using AI inside the workflow (practical tips)
 
+Which AI to use and copy-paste prompts are in [AI_PROMPTS.md](./AI_PROMPTS.md).
+
 - **Ask for the test first.** "Write a failing test for X, then fix it" produces better and safer changes than "fix X".
 - **Give it the guardrails.** `AGENTS.md` and `copilot-instructions.md` are read automatically, so the rules above do not have to be repeated.
 - **Have it explain failures.** Paste the `--log-failed` output from CI and ask for the root cause. Then reproduce locally before accepting the fix.
