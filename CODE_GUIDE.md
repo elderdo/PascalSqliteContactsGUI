@@ -888,7 +888,7 @@ The pipeline above is extended with change-control and evidence practices, docum
 - **Test evidence:** each CI run uploads `test-results.xml` (the **test-results** artifact, kept 90 days).
 - **Releases:** pushing a tag such as `v0.1.0` runs [release.yml](./.github/workflows/release.yml): tests, a full rebuild, a zip with a SHA-256 file, a build attestation, then a GitHub release.
 - **Change control:** [pull request template](./.github/PULL_REQUEST_TEMPLATE.md), [code owners](./.github/CODEOWNERS), and protected `master`.
-- **Traceability:** [docs/REQUIREMENTS.md](./docs/REQUIREMENTS.md). **Compliance gaps:** [docs/COMPLIANCE.md](./docs/COMPLIANCE.md). **AI use:** [docs/AI_WORKFLOW.md](./docs/AI_WORKFLOW.md). **Demo:** [docs/DEMO_SCRIPT.md](./docs/DEMO_SCRIPT.md).
+- **Traceability:** [docs/REQUIREMENTS.md](./docs/REQUIREMENTS.md). **Compliance gaps:** [docs/COMPLIANCE.md](./docs/COMPLIANCE.md). **AI use:** [docs/AI_WORKFLOW.md](./docs/AI_WORKFLOW.md). **Testing and debugging strategy:** [docs/TESTING_AND_DEBUGGING.md](./docs/TESTING_AND_DEBUGGING.md). **Demo:** [docs/DEMO_SCRIPT.md](./docs/DEMO_SCRIPT.md).
 
 ## Known quirks and TODOs
 

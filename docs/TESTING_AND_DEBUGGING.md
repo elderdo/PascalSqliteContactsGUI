@@ -1,0 +1,89 @@
+# Testing and debugging strategy
+
+A repeatable recipe for finding, fixing and proving a bug. Follow it for any new bug or feature. It was used to fix the crashes in this project (RunError 103 from `WriteLn`, "inactive dataset" errors, deletes that were never committed).
+
+## The idea in one paragraph
+
+Every change has to pass **two automatic safety nets before it is committed**: fast unit tests of the database code, and a slow end-to-end test that drives the real application. The same two scripts run on every developer machine (pre-commit hook) and in CI (GitHub Actions), so "it works on my machine" and "it works in CI" mean the same thing. Bugs are fixed **test first**: reproduce, prove it fails, fix, prove it passes.
+
+## The tools and what each one is for
+
+| Layer | Script | Speed | Catches | Runs in |
+|---|---|---|---|---|
+| Unit tests (FPCUnit) | `scripts\run-tests.ps1` | seconds | wrong SQL, missing commits, closed queries | pre-commit, CI |
+| GUI end-to-end test | `scripts\gui-tests.ps1` | about 1 minute | crashes and error dialogs in real use of Search, Add, Edit, Delete | pre-commit, CI |
+| Debugger | `.vscode\launch.json` (gdb) | manual | stepping through code | your machine only |
+| Pre-commit hook | `.githooks\pre-commit` | about 1 minute | blocks a commit when either suite fails | your machine |
+| CI | `.github\workflows\ci.yml` | few minutes | same checks on a clean machine | GitHub |
+
+Every script ends with an **exit code**: 0 = pass, anything else = fail. Hooks and CI only look at that number. Both scripts are commented line by line for beginners.
+
+## One-time setup
+
+1. Install Lazarus (default `C:\lazarus`) and make sure `lazbuild` works.
+2. `git config core.hooksPath .githooks` (enables the pre-commit hook).
+3. Install `sqlite3.exe` or Python (the GUI test reads the database with one of them).
+4. For debugging in VS Code, install the Microsoft C/C++ extension (`ms-vscode.cpptools`).
+
+## The bug-fixing loop
+
+1. **Reproduce** the problem by hand and write down the exact message and steps.
+2. **Find the cause with evidence, not guesses** (see "Debugging techniques" below).
+3. **Write a failing test first.** For database behaviour, add it to `tests\databasetests.pas`. Run `scripts\run-tests.ps1` and confirm it fails *for the right reason*.
+4. **Fix the smallest thing** that makes it pass. Do not refactor unrelated code.
+5. **Run both suites**: `scripts\run-tests.ps1`, then `scripts\gui-tests.ps1` (close the app first and do not touch the mouse or keyboard while the GUI test runs).
+6. **Repeat the GUI test several times in a row.** GUI tests can be flaky; one pass proves little. Aim for 5 to 10 consecutive passes before trusting it.
+7. **Update docs** (`CODE_GUIDE.md`, `CHANGELOG.md`, `docs\REQUIREMENTS.md` when behaviour changes).
+8. **Commit** on a branch (the hook runs both suites), push, open a pull request with the template, wait for CI, squash-merge.
+
+## How the GUI test works
+
+`scripts\gui-tests.ps1` behaves like a very patient user:
+
+1. Builds the app and **backs up the real database**.
+2. Starts `hellocontacts.exe`.
+3. Finds windows and buttons with Windows **UI Automation**, types text and presses buttons by sending Windows messages (`WM_SETTEXT`, `BM_CLICK`).
+4. After every action it **checks the SQLite file** with SQL. The DB grids are custom-drawn and unreadable by automation, and the database is the truth anyway.
+5. Fails if an error dialog (a window with an Abort button) appears.
+6. In a `finally` block it always closes the app and **restores the database**.
+
+Covered: Search, Add, Edit, Delete (including Cancel). Not covered: phone Add/Edit/Delete.
+
+### Adding a new GUI step
+
+1. Find the control: print `ListWindows` output (the script does this when a step fails) to see window titles, class names and button captions.
+2. Act with `SetText` / `Click` / `SelectFirstRow`.
+3. Wait with `WaitWindow`, `WaitDialogWithButton` or `WaitFor` instead of fixed sleeps.
+4. Assert with `Check 'name' (condition)`, preferably on a database value.
+
+## Debugging techniques that worked
+
+- **Read the exception text.** "RunError 103" means a file operation on a closed file (`WriteLn` in a program with no console). "Operation cannot be performed on an inactive dataset" means a query was closed (here by `Commit`) and then used.
+- **Get a real call stack.** In a temporary build, install an `Application.OnException` handler that writes `BackTraceStrFunc(ExceptAddr)` and every `ExceptFrames[i]` to a file, then build with `lazbuild -B --opt=-gl hellocontacts.lpi` and resolve each address with `gdb -batch -ex "info symbol 0x..." hellocontacts.exe`. The names show which procedure raised the error. **Remove this code before committing.**
+- **Check the data from outside the app.** Open the database with another connection (the tests use `CountFromOtherConnection`). It shows whether a change was really committed.
+- **Suspect your own test tool.** The Delete test failed about half the time because the test's `sqlite3` polling held a read lock while the app was committing (SQLITE_BUSY, swallowed silently). Waiting a moment before reading fixed it. When a failure is intermittent, ask what in the test environment could be interfering.
+- **Print what you cannot see.** When a step fails, dump the dialog text and the database rows before deciding what is wrong.
+- **Debug in VS Code.** Press F5 with "Debug hellocontacts (gdb)" (builds first, then starts gdb). The path to `gdb.exe` is in `launch.json`. This configuration has not been verified end to end.
+- **Use `DebugLn`, never `WriteLn`,** for diagnostics in the GUI app.
+
+## Safety rules for test runs
+
+- Close `hellocontacts.exe` before running the GUI test; the script refuses to start otherwise.
+- Do not click or type during a GUI run.
+- After a run, check that `%LOCALAPPDATA%\hellocontacts\helloContacts.db.guitest.bak` does **not** exist. If it does, a run was killed; copy it over `helloContacts.db` to restore your data.
+- Never use `git commit --no-verify` unless you have a reason you can state.
+
+## Expediting deployment
+
+The pipeline is: branch, commit (hook runs both suites), push, PR (template with the exact commands and results), CI re-runs everything on a clean machine, squash-merge to `master`. Because the same scripts run in every place, a green CI is a strong signal and no manual re-testing is needed. If the CI GUI step cannot run on a hosted runner (no interactive desktop), make that one step non-blocking and keep the hook as the gate. Whether this is needed has not been confirmed yet.
+
+## Checklist to copy into a PR or ticket
+
+- [ ] Reproduced the bug and noted the exact steps
+- [ ] Wrote a failing test and saw it fail
+- [ ] Fixed it with the smallest change
+- [ ] `scripts\run-tests.ps1` passes
+- [ ] `scripts\gui-tests.ps1` passes several runs in a row
+- [ ] Temporary debug code removed
+- [ ] Docs and changelog updated
+- [ ] Test database restored (no `.guitest.bak` left)
