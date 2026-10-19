@@ -20,7 +20,7 @@ Repository: `elderdo/PascalSqliteContactsGUI`. Windows, PowerShell, run from the
 |---|---|---|
 | **Lazarus / Free Pascal**, `lazbuild` | Building the app and the test project from the command line | `C:\lazarus`. `-B` forces a full rebuild |
 | **FPCUnit** | Unit tests in `tests\` | Run by `scripts\run-tests.ps1` |
-| **PowerShell 5+** | All scripts | Use `-NoProfile` so runs match on every machine |
+| **PowerShell 5+** | All scripts | Use `-NoProfile` so runs match on every machine. Patterns: [POWERSHELL_GUIDE.md](./POWERSHELL_GUIDE.md) |
 | **Windows UI Automation + Win32 messages** | Driving the real app in the GUI test | Needs an interactive desktop |
 | **SQLite** (`sqlite3.exe`, or Python's `sqlite3`) | Checking the real database from outside the app | Proves a change was committed |
 | **gdb** (`C:\lazarus\mingw\x86_64-win64\bin\gdb.exe`) | Turning crash addresses into procedure names; stepping in VS Code | `info symbol 0x...` |
@@ -94,6 +94,25 @@ Things that trip people up:
 - If a check fails: `gh run view <run-id> -R elderdo/PascalSqliteContactsGUI --log-failed`, then fix on the same branch and push (the PR updates itself).
 - Evidence: `gh run download <run-id> -R elderdo/PascalSqliteContactsGUI -n gui-evidence` (the GUI log, plus a screenshot only on failure).
 
+**What CI is for.** CI (continuous integration) builds the app and runs the 30 unit tests and the 17 GUI checks on a clean Windows machine, so "works on my machine" problems and anything the local hook skipped show up before merge. Branch protection makes the `test` check mandatory. CD (continuous delivery) is `release.yml`, which runs on a version tag and has not been exercised yet.
+
+**Wait for the result before you:** merge, delete the branch or sync `master`, tag a release, start a PR that builds on this one, or claim the change works.
+
+**Keep working while it runs** on docs or on the next branch cut from `master`. Do not edit files or switch branches in a clone that `merge-when-green.ps1` is using, because its last step changes branches. Do not push again unless you mean to restart CI.
+
+| State | Meaning | Action |
+|---|---|---|
+| Pending | CI is running (about 3 to 4 minutes) | Wait. Do not push. |
+| Green | All checks passed | Merge (step 9) |
+| Failed | A real failure | `--log-failed`, download `gui-evidence`, reproduce locally, fix test-first, push |
+| Cancelled | A newer push replaced the run | Wait for the newer run. Not a test failure |
+| `BEHIND` | `master` moved on while CI ran; GitHub refuses the merge | `git fetch origin; git merge origin/master; git push`, wait for CI again, re-run the script |
+| `CONFLICTING` | Your change overlaps another | Resolve locally, push, wait |
+
+The `BEHIND` case happened for real with PR #14: CI was green, but the merge was refused until the branch was updated.
+
+**Polling from JSON.** `gh pr view <n> --json statusCheckRollup -q '.statusCheckRollup | length'` prints how many checks are registered. `--json` fields are a stable interface; message text such as "no checks reported" is not. `gh api <path>` calls any GitHub REST endpoint directly (it was used to read and set branch protection, for example `gh api repos/elderdo/PascalSqliteContactsGUI/branches/master/protection`).
+
 ### 9. Merge when green
 Only merge when the required `test` check is green and you have reviewed the diff.
 
@@ -122,7 +141,7 @@ Then start the next change from the updated `master`. Never reuse a squash-merge
 | GUI test says "Close hellocontacts.exe first" | Same | Same |
 | GUI test fails about half the time | A flaky interaction, often the test itself | Run 10 times, dump what is on screen and the DB, find the cause before changing the app |
 | `gh` acts on the wrong repo | `gh` guessing | Pass `-R elderdo/PascalSqliteContactsGUI` |
-| Merge button blocked | `test` not green, or branch out of date | Read the failing step; update the branch if needed |
+| Merge button blocked, or "head branch is not up to date" | `test` not green, or `master` moved on (`BEHIND`) | Read the failing step; for `BEHIND` merge `origin/master` into the branch, push, wait, re-run the script |
 | `gh run watch` exits 1 but nothing failed | The run was cancelled by a newer push | Watch the newest run |
 | `helloContacts.db.guitest.bak` exists | A GUI run was killed | Copy it over `helloContacts.db` to restore your data |
 
