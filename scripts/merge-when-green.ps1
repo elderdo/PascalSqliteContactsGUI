@@ -10,7 +10,9 @@ param(
     # gh can guess the wrong repository, so the repo is always passed explicitly
     [string]$Repo = 'elderdo/PascalSqliteContactsGUI'
 )
-$ErrorActionPreference = 'Stop'
+# Native commands write to stderr in normal operation (for example "no checks reported"), and
+# 'Stop' would turn that into a script error, so exit codes are checked explicitly instead.
+$ErrorActionPreference = 'Continue'
 
 # 1. Right after a push GitHub needs a few seconds to register the checks.
 for ($i = 0; $i -lt 30; $i++) {
