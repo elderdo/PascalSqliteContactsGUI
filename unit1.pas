@@ -76,7 +76,7 @@ begin
       *      'First Like "%Ste%"'
       *)
      FilterString := 'Name Like ''%' + EditSearch.Text + '%''';
-     WriteLn(FilterString);
+     DebugLn(FilterString);
 
      (* Server Filter filters on the database side, as opposed to .Filter which
       * Filters the result table
@@ -210,6 +210,7 @@ begin
          end;
      end;
     finally
+        DataModule1.EnsureMainQueriesActive();
         DataModule1.QueryPeople.Refresh();
         DBGridPeople.Refresh();
         HideIds();
@@ -250,6 +251,7 @@ procedure TFormContacts.ButtonDeletePhoneClick(Sender: TObject);
             end;
         end;
        finally
+           DataModule1.EnsureMainQueriesActive();
            DataModule1.QueryPhones.Refresh();
            DBGridPhones.Refresh();
            HideIds();
@@ -280,6 +282,7 @@ begin
         end;
     end;
   finally
+       DataModule1.EnsureMainQueriesActive();
        DataModule1.QueryPhones.Refresh();
        DBGridPhones.Refresh();
        HideIds();

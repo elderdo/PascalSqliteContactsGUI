@@ -55,3 +55,9 @@ jobs:
       - name: Build application
         shell: pwsh
         run: lazbuild hellocontacts.lpi
+
+      - name: GUI tests (Search, Add, Edit, Delete)
+        shell: pwsh
+        run: |
+          Copy-Item tests\sqlite3.dll .\sqlite3.dll
+          ./scripts/gui-tests.ps1

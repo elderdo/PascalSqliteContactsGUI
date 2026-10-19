@@ -2,6 +2,17 @@
 
 All notable changes. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- GUI tests (`scripts\gui-tests.ps1`) for Search, Add, Edit and Delete, run by the pre-commit hook and CI.
+- Unit tests that check writes keep other open queries open and that deletes are committed (30 tests total).
+
+### Fixed
+- `WriteLn` debug prints crashed the GUI app with RunError 103 (no console). They now use `DebugLn`.
+- Add/Edit closed the people and phone queries, causing "Operation cannot be performed on an inactive dataset". Commits now use `CommitRetaining`.
+- Deleting a person or phone was never committed, so it came back after the app closed.
+
 ## [0.1.0] - 2026-10-08
 
 ### Added

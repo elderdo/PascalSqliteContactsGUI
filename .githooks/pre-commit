@@ -15,4 +15,13 @@ if [ $status -ne 0 ]; then
     echo "pre-commit: tests failed, commit aborted."
     exit 1
 fi
+
+echo "pre-commit: running GUI tests (the app must be closed; do not click while they run)..."
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$(dirname "$0")/../scripts/gui-tests.ps1"
+status=$?
+
+if [ $status -ne 0 ]; then
+    echo "pre-commit: GUI tests failed, commit aborted."
+    exit 1
+fi
 exit 0

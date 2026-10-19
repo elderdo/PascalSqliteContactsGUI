@@ -23,6 +23,7 @@ type
     procedure TearDown; override;
     function ScalarInt(const SQL: String): Integer;
     function ScalarStr(const SQL: String): String;
+    function CountFromOtherConnection(const SQL: String): Integer;
   end;
 
   { TPeopleTests }
@@ -34,6 +35,7 @@ type
     procedure AddUserHandlesApostrophe;
     procedure EditUserChangesNames;
     procedure DeleteUserRemovesRow;
+    procedure DeleteUserIsCommitted;
   end;
 
   { TPhoneTests }
@@ -45,7 +47,27 @@ type
     procedure QueryPhonesReturnsOnlySelectedPerson;
     procedure EditPhoneChangesNumberAndType;
     procedure DeletePhoneRemovesRow;
+    procedure DeletePhoneIsCommitted;
     procedure DeleteUserDeletesTheirPhones;
+  end;
+
+  { TOpenQueryTests: a query shown in the UI shares the transaction with the
+    query used for writes. Writes must not close it. }
+
+  TOpenQueryTests = class(TDatabaseTestCase)
+  private
+    FGrid: TSQLQuery;
+    procedure OpenGrid;
+  protected
+    procedure SetUp; override;
+    procedure TearDown; override;
+  published
+    procedure AddUserKeepsOtherQueryOpen;
+    procedure EditUserKeepsOtherQueryOpen;
+    procedure DeleteUserKeepsOtherQueryOpen;
+    procedure AddPhoneKeepsOtherQueryOpen;
+    procedure EditPhoneKeepsOtherQueryOpen;
+    procedure DeletePhoneKeepsOtherQueryOpen;
   end;
 
 implementation
@@ -119,6 +141,33 @@ begin
   FQuery.Close;
 end;
 
+{ Reads through a separate connection, so only committed data is visible }
+function TDatabaseTestCase.CountFromOtherConnection(const SQL: String): Integer;
+var
+  C: TSQLite3Connection;
+  T: TSQLTransaction;
+  Q: TSQLQuery;
+begin
+  C := TSQLite3Connection.Create(nil);
+  T := TSQLTransaction.Create(nil);
+  Q := TSQLQuery.Create(nil);
+  try
+    C.DatabaseName := FDBFile;
+    C.Transaction := T;
+    T.Database := C;
+    Q.Database := C;
+    Q.Transaction := T;
+    C.Connected := True;
+    Q.SQL.Text := SQL;
+    Q.Open;
+    Result := Q.Fields[0].AsInteger;
+  finally
+    Q.Free;
+    T.Free;
+    C.Free;
+  end;
+end;
+
 { TPeopleTests }
 
 procedure TPeopleTests.AddUserReturnsNewId;
@@ -129,6 +178,27 @@ begin
   Id2 := AddUser(FQuery, 'Alan', 'Turing');
   AssertTrue('first id is valid', Id1 > 0);
   AssertTrue('second id is different', Id2 > Id1);
+end;
+
+procedure TPeopleTests.DeleteUserIsCommitted;
+var
+  Id: Integer;
+begin
+  Id := AddUser(FQuery, 'Ada', 'Lovelace');
+  DeleteUser(FQuery, Id);
+  AssertEquals('row still visible to other connections', 0,
+    CountFromOtherConnection('SELECT COUNT(*) FROM People'));
+end;
+
+procedure TPhoneTests.DeletePhoneIsCommitted;
+var
+  PersonId, PhoneId: Integer;
+begin
+  PersonId := AddUser(FQuery, 'Ada', 'Lovelace');
+  PhoneId := AddPhone(FQuery, PersonId, '9165550001', 1);
+  DeletePhone(FQuery, PhoneId);
+  AssertEquals('row still visible to other connections', 0,
+    CountFromOtherConnection('SELECT COUNT(*) FROM PhoneNumbers'));
 end;
 
 procedure TPeopleTests.AddUserStoresNames;
@@ -241,8 +311,91 @@ begin
   AssertEquals('phones left behind', 0, ScalarInt('SELECT COUNT(*) FROM PhoneNumbers'));
 end;
 
+{ TOpenQueryTests }
+
+procedure TOpenQueryTests.SetUp;
+begin
+  inherited SetUp;
+  FGrid := TSQLQuery.Create(nil);
+  FGrid.Database := FQuery.Database;
+  FGrid.Transaction := FQuery.Transaction;
+  FGrid.SQL.Text := 'SELECT Id, First || '' '' || Last AS Name FROM People';
+end;
+
+procedure TOpenQueryTests.TearDown;
+begin
+  FGrid.Free;
+  inherited TearDown;
+end;
+
+procedure TOpenQueryTests.OpenGrid;
+begin
+  FGrid.Open;
+  AssertTrue('grid query opens', FGrid.Active);
+end;
+
+procedure TOpenQueryTests.AddUserKeepsOtherQueryOpen;
+begin
+  OpenGrid;
+  AddUser(FQuery, 'Ada', 'Lovelace');
+  AssertTrue('grid query still open', FGrid.Active);
+end;
+
+procedure TOpenQueryTests.EditUserKeepsOtherQueryOpen;
+var
+  Id: Integer;
+begin
+  Id := AddUser(FQuery, 'Ada', 'Lovelace');
+  OpenGrid;
+  EditUser(FQuery, Id, 'Augusta', 'King');
+  AssertTrue('grid query still open', FGrid.Active);
+end;
+
+procedure TOpenQueryTests.DeleteUserKeepsOtherQueryOpen;
+var
+  Id: Integer;
+begin
+  Id := AddUser(FQuery, 'Ada', 'Lovelace');
+  OpenGrid;
+  DeleteUser(FQuery, Id);
+  AssertTrue('grid query still open', FGrid.Active);
+end;
+
+procedure TOpenQueryTests.AddPhoneKeepsOtherQueryOpen;
+var
+  Id: Integer;
+begin
+  Id := AddUser(FQuery, 'Ada', 'Lovelace');
+  OpenGrid;
+  AddPhone(FQuery, Id, '9165550001', 1);
+  AssertTrue('grid query still open', FGrid.Active);
+end;
+
+procedure TOpenQueryTests.EditPhoneKeepsOtherQueryOpen;
+var
+  Id, PhoneId: Integer;
+begin
+  Id := AddUser(FQuery, 'Ada', 'Lovelace');
+  PhoneId := AddPhone(FQuery, Id, '9165550001', 1);
+  OpenGrid;
+  EditPhone(FQuery, PhoneId, Id, '9165559999', 2);
+  AssertTrue('grid query still open', FGrid.Active);
+end;
+
+procedure TOpenQueryTests.DeletePhoneKeepsOtherQueryOpen;
+var
+  Id, PhoneId: Integer;
+begin
+  Id := AddUser(FQuery, 'Ada', 'Lovelace');
+  PhoneId := AddPhone(FQuery, Id, '9165550001', 1);
+  OpenGrid;
+  DeletePhone(FQuery, PhoneId);
+  AssertTrue('grid query still open', FGrid.Active);
+end;
+
 initialization
   RegisterTest(TPeopleTests);
   RegisterTest(TPhoneTests);
+  RegisterTest(TOpenQueryTests);
 
 end.
